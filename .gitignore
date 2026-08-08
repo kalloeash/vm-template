@@ -1,0 +1,15 @@
+# local test artifacts
+*.log
+/tmp/
+/.test-artifacts/
+
+# secrets never belong here
+*.pem
+*.key
+id_ed25519*
+id_rsa*
+*.env
+
+# OS cruft
+.DS_Store
+Thumbs.db
