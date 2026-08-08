@@ -47,10 +47,19 @@ portable (pure POSIX, BDD/Gherkin syntax) and worth reconsidering only if the mo
 need to run under non-bash shells, which the Debian-family target rules out. Decision:
 bats-core for the assertion tests that run in the WSL and Hetzner tiers.
 
+## Delivery (how hardening reaches the box — see DELIVERY.md)
+
+| Tool | Role | Status |
+|---|---|---|
+| cloud-init | run the modules at first boot, before the box is reachable | **added** (path B, ticket 013) — closes the post-boot day-0 window |
+| Packer | bake a versioned hardened image; rebuild-not-patch | **roadmap** (path C, ticket 014) — parked until >1 host |
+
 ## Considered and rejected
 
 - **Ansible / dev-sec / ansible-lockdown** — right tool for fleets; control-node + YAML
   overhead is wrong for 1–3 hosts. Module boundaries map onto dev-sec roles if we migrate.
+  We accept the imperative-Bash tradeoff knowingly (assessment §8.2): strict idempotency
+  plus `make audit` for drift, rather than a declarative engine.
 - **OpenSCAP / USG (Ubuntu Security Guide)** — full CIS audit paperwork. We take CIS
   Level 1 ideas, not the compliance-evidence burden. Revisit if an org ever requires an
   attestation.

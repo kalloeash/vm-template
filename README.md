@@ -12,6 +12,7 @@ module implementations follow. Start here:
   the manual process, research sources
 - [docs/HARDENING.md](docs/HARDENING.md) — per-module spec and deliberate omissions
 - [docs/TOOLING.md](docs/TOOLING.md) — every tool, why it's in or out
+- [docs/DELIVERY.md](docs/DELIVERY.md) — three ways hardening reaches a box (post-boot / cloud-init / Packer)
 - [docs/TESTING.md](docs/TESTING.md) — three-tier test strategy
 - [docs/STYLE.md](docs/STYLE.md) — writing rules (enforced), including the no-AI-language rule
 - [tickets/](tickets/) — the agent-ready build plan, one file per unit of work

@@ -57,8 +57,12 @@ Acceptance criteria per release:
 
 1. `make harden` completes on a stock image with zero prompts.
 2. Second `make harden` run reports `OK` on every step (idempotence).
-3. `make audit` passes: **Lynis hardening index ≥ agreed floor** (record the baseline
-   score first, then ratchet), `ssh-audit` reports no failures, all our assertions green.
+3. `make audit` passes: **Lynis hardening index ≥ 75** (research floor for a well-hardened
+   server; a fresh cloud image scores ~50–65, so the baseline modules should move it 10–20
+   points). Record the baseline first, then ratchet. `ssh-audit` reports no failures, all
+   our assertions green. **The score is a progress metric, not a grade**: unresolved Lynis
+   *warnings* outrank the number, and Lynis is not a vulnerability scan — CVE coverage is
+   Trivy's job (built images) plus manual nmap/OpenVAS if ever needed.
 4. **Lockout drill**: after hardening, password SSH is refused, root SSH is refused,
    key-based admin SSH works, `sudo` works.
 5. Repeat on `debian-13` image (supported tier) each release; Kali (best-effort tier)
@@ -66,6 +70,7 @@ Acceptance criteria per release:
 
 ## Regression scoring
 
-Keep `docs/lynis-baseline.md` with the hardening-index history per distro. A PR that
-drops the index fails review — same philosophy as the test-count baselines in the
-encryptedlink CLAUDE.md files.
+Keep `docs/lynis-baseline.md` with the hardening-index history per distro (floor 75). A PR
+that drops the index below the recorded baseline fails review — same philosophy as the
+test-count baselines in the encryptedlink CLAUDE.md files. Warnings are tracked alongside
+the number; a PR may not add a new unaddressed Lynis warning even if the score holds.

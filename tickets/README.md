@@ -29,6 +29,8 @@ plan for the modules the [assessment](../docs/ASSESSMENT.md) specifies.
 | [010](010-test-harness.md) | bats-core suite + WSL + Hetzner acceptance harness | ready | 001 |
 | [011](011-ci-github-actions.md) | CI: pre-commit + lint-language + bats on PR | draft | 010 |
 | [012](012-crowdsec-evaluation.md) | Evaluate CrowdSec vs fail2ban | draft | 006 |
+| [013](013-cloud-init-delivery.md) | cloud-init first-boot delivery path | ready | 001–009 |
+| [014](014-packer-golden-image.md) | Packer golden-image roadmap | draft | 013 |
 
 Legend: `draft` = needs a decision before an agent starts · `ready` = agent-pickable ·
 `in-progress` · `done`.

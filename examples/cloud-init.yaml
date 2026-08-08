@@ -1,0 +1,29 @@
+#cloud-config
+# First-boot hardening via cloud-init (delivery path B — see docs/DELIVERY.md).
+# Paste into your provider's "user-data" / cloud-config field when creating the VM.
+#
+# This closes the day-0 exposure window: the admin key is injected and password SSH is
+# disabled on the first boot, before the machine is reachable for its real purpose, then
+# the modules run the rest of the baseline.
+#
+# NEVER put secrets (tokens, DB passwords) in user-data — the instance metadata service
+# exposes it. Application secrets are generated on the box, after harden, out of band.
+
+package_update: true
+package_upgrade: true
+
+users:
+  - name: admin
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: "ALL=(ALL) ALL"
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAA...replace-with-your-public-key... you@host
+
+# Disable password SSH immediately; the modules re-assert and extend this.
+ssh_pwauth: false
+
+runcmd:
+  - [git, clone, "https://github.com/kalloeash/vm-template.git", /opt/vm-template]
+  # FORCE_LOCKOUT_OK is safe here: cloud-init already provisioned the admin key above.
+  - [bash, -lc, "cd /opt/vm-template && make harden ADMIN_USER=admin FORCE_LOCKOUT_OK=1 EXTRA_PORTS='80/tcp 443/tcp'"]

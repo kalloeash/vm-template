@@ -129,7 +129,43 @@ Three tiers, cheapest first:
 - **rkhunter/chkrootkit** — noise machines; Lynis covers the useful subset.
 - **SELinux** — AppArmor is the Debian-family default; we verify it's enforcing instead.
 
-## 8. Research sources
+## 8. Assumptions audit (did we take shortcuts?)
+
+Every load-bearing assumption in this design, checked against the research. `KEEP` = held
+up; `FIX` = changed the design; `OWN` = a real tradeoff we accept and now state plainly.
+
+1. **"Post-boot `make harden` is the delivery model."** → **FIX.** Research is consistent
+   that applying hardening after boot leaves a day-0 exposure window and that an
+   unhardened base image is security debt. The modules now support three delivery paths
+   ([DELIVERY.md](DELIVERY.md)): post-boot (day-0 on an existing box), **cloud-init first
+   boot** (recommended for new VMs — hardened before reachable), and Packer golden image
+   (scale-up endgame). Module code is identical across all three; only invocation differs.
+2. **"Bash imperative is fine."** → **OWN.** Imperative scripts handle drift detection and
+   partial failure worse than declarative tools. We keep Bash (no control-node dependency
+   for 1–3 hosts) but pay the tax deliberately: strict idempotency, `make audit` as the
+   drift check declarative tools give for free, and a documented migration to
+   dev-sec/Ansible if host count grows. Stated, not hidden.
+3. **"Container ports on `127.0.0.1` is enough for the Docker/ufw problem."** → **KEEP.**
+   Explicitly endorsed as the best-practice default. Caveat now recorded: a `127.0.0.1`
+   bind can affect container-to-container networking, and if a port *must* be published
+   publicly, the `ufw-docker` tool is required (not hand-written rules) because container
+   IPs change on restart.
+4. **"fail2ban sshd jail just works."** → **FIX.** On Ubuntu 24.04 sshd logs to the
+   journal, not `/var/log/auth.log`; the jail needs `backend = systemd` (we had this) and
+   also `allowipv6 = auto` or it warns/mis-bans on dual-stack. Added to ticket 006.
+5. **"Lynis index ≥ some floor."** → **FIX.** Pinned to a realistic target: fresh images
+   score ~50–65, a well-hardened server targets **75+**. We record the baseline and
+   ratchet, but treat warnings-first as the real signal — and note Lynis is a hardening
+   metric, not a vulnerability scan (that is Trivy/nmap/OpenVAS). Updated TESTING.md and
+   ticket 009.
+6. **"WSL is a faithful test tier."** → **KEEP (already scoped).** WSL shares one kernel,
+   so ufw/sysctl runtime is not representative; we already assert file-state only there
+   and defer runtime to the Hetzner tier. No change, but re-confirmed as a real limit.
+7. **"Debian-family, one code path."** → **KEEP.** apt+systemd+ufw is uniform across
+   Ubuntu/Debian/Kali; per-module `require_distro` guards the edges (Kali rolling origins,
+   existing `kali` user). RHEL stays out.
+
+## 9. Research sources
 
 - [Ubuntu: CIS benchmark hardening automation for 24.04 (USG)](https://ubuntu.com/blog/hardening-automation-for-cis-benchmarks-now-available-for-ubuntu-24-04-lts)
 - [Server hardening checklist for Ubuntu 24.04](https://privatedevops.com/articles/server-hardening-checklist-ubuntu-2404)
@@ -143,3 +179,8 @@ Three tiers, cheapest first:
 - [Why Docker bypasses UFW and how to lock it down](https://dev.to/alanwest/why-docker-bypasses-ufw-and-how-to-actually-lock-it-down-26ep)
 - [chaifeng/ufw-docker (DOCKER-USER chain integration)](https://github.com/chaifeng/ufw-docker)
 - [Docker published ports ignoring UFW (Baeldung)](https://www.baeldung.com/linux/docker-container-published-port-ignoring-ufw-rules)
+- [cloud-init security hardening](https://docs.cloud-init.io/en/latest/explanation/hardening.html)
+- [Building a hardened Ubuntu 24.04 image with Packer + cloud-init + OpenSCAP](https://www.hacknwatch.com/posts/packer-hardened-ubuntu-image/)
+- [Lynis hardening index explained](https://linux-audit.com/lynis/lynis-hardening-index/)
+- [Declarative vs imperative IaC and drift](https://oneuptime.com/blog/post/2026-03-20-declarative-vs-imperative-iac-opentofu/view)
+- [fail2ban sshd on systemd-journal hosts (backend=systemd)](https://github.com/fail2ban/fail2ban/issues/3642)

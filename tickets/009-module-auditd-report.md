@@ -26,7 +26,9 @@ independent grade (Lynis index, ssh-audit, Trivy).
 
 1. `make audit` changes nothing (assert: no `CHANGED:` lines; git-clean on a repo-tracked
    test fixture).
-2. Report prints a numeric Lynis hardening index and a non-empty ssh-audit summary.
+2. Report prints a numeric Lynis hardening index (target ≥ 75 on a real host; fresh images
+   are ~50–65) plus the count of open Lynis warnings, and a non-empty ssh-audit summary.
+   Warnings are surfaced, not just the score.
 3. Under `TIER=full`, `auditctl -l` lists the shipped rules; base tier leaves auditd
    absent but journald persistent.
 4. Trivy step is skipped with a note when no target images are present (not a failure).

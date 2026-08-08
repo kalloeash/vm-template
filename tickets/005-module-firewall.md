@@ -25,6 +25,11 @@ and makes the Docker interaction explicit rather than incidental.
 - Egress filtering (`default deny outgoing`) — rejected in assessment §7.
 - Per-container network policy (belongs to the app's compose, not the host baseline).
 
+**Note (from research):** a `127.0.0.1` publish can affect container-to-container
+networking in some topologies, and if a port must be published publicly the `ufw-docker`
+tool is required rather than hand-written `after.rules` — container IPs change on restart,
+so static rules rot. `UFW_DOCKER=1` therefore installs the tool, it does not hand-roll rules.
+
 ## Acceptance criteria
 
 1. After `make firewall`, `ufw status verbose` shows `Default: deny (incoming)` and the

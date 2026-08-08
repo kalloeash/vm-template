@@ -46,8 +46,9 @@ safe defaults (documented per module). Ordering = numeric prefix.
   chain wiring for hosts that must publish container ports.
 
 ## 50-fail2ban
-- Install; deploy `jail.d/sshd.local` exactly as proven on encryptedlinkvm
-  (maxretry 3 / findtime 600 / bantime 3600, incremental to 5w, systemd backend).
+- Install; deploy `jail.d/sshd.local` (maxretry 3 / findtime 600 / bantime 3600,
+  incremental to 5w). `backend = systemd` (mandatory on 24.04 — sshd logs to the journal,
+  not `/var/log/auth.log`) and `allowipv6 = auto` (silences the dual-stack warning).
 - No `jail.conf → jail.local` full copy (upstream anti-pattern).
 
 ## 60-sysctl
