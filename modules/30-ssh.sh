@@ -31,6 +31,10 @@ ChallengeResponseAuthentication no
 PermitRootLogin no
 PubkeyAuthentication yes
 PermitEmptyPasswords no
+# Offer only strong host keys — this stops sshd presenting the ecdsa (nistp256)
+# host key that ssh-audit flags. ed25519 + rsa host keys exist on stock images.
+HostKey /etc/ssh/ssh_host_ed25519_key
+HostKey /etc/ssh/ssh_host_rsa_key
 MaxAuthTries 3
 LoginGraceTime 30
 ClientAliveInterval 300

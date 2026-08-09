@@ -27,19 +27,20 @@ check "journald persistent" bash -c "grep -qE '^Storage=persistent' /etc/systemd
 
 echo "--- ssh-audit ---"
 if command -v ssh-audit >/dev/null; then
-  ssh-audit -l warn 127.0.0.1 2>/dev/null | grep -E '^\(gen\)|fail|warn' | head -20 \
-    || echo "  ssh-audit ran (no warn/fail lines)"
+  audit_out="$(ssh-audit -n -l warn 127.0.0.1 2>/dev/null || true)"
+  hits="$(printf '%s\n' "$audit_out" | grep -iE '\[fail\]|\[warn\]' || true)"
+  if [[ -n $hits ]]; then printf '%s\n' "$hits"; else echo "  clean (no warn/fail findings)"; fi
 else
-  echo "  ssh-audit not installed (pip install ssh-audit) — skipped"
+  echo "  ssh-audit not installed (apt-get install ssh-audit) — skipped"
 fi
 
 echo "--- Lynis hardening index ---"
 if command -v lynis >/dev/null; then
   lynis audit system --quick --quiet >/tmp/vmt-lynis.log 2>&1 || true
-  idx="$(awk -F'[: ]+' '/Hardening index/{print $NF}' /var/log/lynis-report.dat 2>/dev/null | tail -1)"
-  warns="$(grep -c '^warning\[\]' /var/log/lynis-report.dat 2>/dev/null || echo '?')"
+  idx="$(awk -F= '/^hardening_index=/{print $2}' /var/log/lynis-report.dat 2>/dev/null | tail -1)"
+  warns="$(grep -c '^warning\[\]=' /var/log/lynis-report.dat 2>/dev/null || echo '?')"
   echo "  hardening index: ${idx:-unknown} (target >= 75; fresh images ~50-65)"
-  echo "  open warnings:   ${warns} (address warnings before chasing the score)"
+  echo "  open warnings:   ${warns:-0} (address warnings before chasing the score)"
 else
   echo "  lynis not installed (apt-get install lynis) — skipped"
 fi
