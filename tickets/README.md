@@ -17,20 +17,26 @@ plan for the modules the [assessment](../docs/ASSESSMENT.md) specifies.
 
 | Ticket | Title | Status | Depends on |
 |---|---|---|---|
-| [001](001-lib-common-and-preflight.md) | Harden `lib/common.sh` + finish preflight guard | ready | — |
-| [002](002-module-update.md) | `10-update`: upgrades, unattended-upgrades, needrestart | ready | 001 |
-| [003](003-module-user.md) | `20-user`: admin user + sudo | ready | 001 |
-| [004](004-module-ssh.md) | `30-ssh`: keys-only, modern algorithms, lockout-safe | ready | 001, 003 |
-| [005](005-module-firewall.md) | `40-firewall`: ufw + Docker DOCKER-USER integration | ready | 001 |
-| [006](006-module-fail2ban.md) | `50-fail2ban`: sshd jail | ready | 001, 004 |
-| [007](007-module-sysctl.md) | `60-sysctl`: network + kernel hardening | ready | 001 |
-| [008](008-module-docker.md) | `70-docker`: repo install + `daemon.json` caps | ready | 001 |
-| [009](009-module-auditd-report.md) | `80-auditd` + `90-report` (Lynis/ssh-audit/Trivy) | ready | 001–008 |
-| [010](010-test-harness.md) | bats-core suite + WSL + Hetzner acceptance harness | ready | 001 |
+| [001](001-lib-common-and-preflight.md) | Harden `lib/common.sh` + finish preflight guard | done | — |
+| [002](002-module-update.md) | `10-update`: upgrades, unattended-upgrades, needrestart | done | 001 |
+| [003](003-module-user.md) | `20-user`: admin user + sudo | done | 001 |
+| [004](004-module-ssh.md) | `30-ssh`: keys-only, modern algorithms, lockout-safe | done | 001, 003 |
+| [005](005-module-firewall.md) | `40-firewall`: ufw + Docker DOCKER-USER integration | done | 001 |
+| [006](006-module-fail2ban.md) | `50-fail2ban`: sshd jail | done | 001, 004 |
+| [007](007-module-sysctl.md) | `60-sysctl`: network + kernel hardening | done | 001 |
+| — | `65-hardening`: login.defs, core dumps, module blacklist (added for Lynis floor) | done | 001 |
+| [008](008-module-docker.md) | `70-docker`: repo install + `daemon.json` caps | done | 001 |
+| [009](009-module-auditd-report.md) | `80-auditd` + `90-report` (Lynis/ssh-audit) | done | 001–008 |
+| [010](010-test-harness.md) | Hetzner acceptance runner done; bats suite still open | in-progress | 001 |
 | [011](011-ci-github-actions.md) | CI: pre-commit + lint-language + bats on PR | draft | 010 |
 | [012](012-crowdsec-evaluation.md) | Evaluate CrowdSec vs fail2ban | draft | 006 |
 | [013](013-cloud-init-delivery.md) | cloud-init first-boot delivery path | ready | 001–009 |
 | [014](014-packer-golden-image.md) | Packer golden-image roadmap | draft | 013 |
+
+**Tier-3 acceptance (2026-08-09):** all base modules verified on a real Ubuntu 24.04
+Hetzner VM — every control green, ssh-audit clean, idempotent, lockout drill passed,
+Lynis index 78 (see [docs/lynis-baseline.md](../docs/lynis-baseline.md)). Still open:
+the bats unit suite (010), CI (011), and the cloud-init end-to-end verification (013).
 
 Legend: `draft` = needs a decision before an agent starts · `ready` = agent-pickable ·
 `in-progress` · `done`.
