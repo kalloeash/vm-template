@@ -19,6 +19,8 @@ else
 fi
 
 apt_install unattended-upgrades needrestart
+# audit-suggested hygiene: PAM per-session tmp, package verification + versions
+apt_install libpam-tmpdir debsums apt-show-versions
 
 # --- unattended-upgrades policy ----------------------------------------------
 # Ubuntu/Debian ship -security auto; we also enable -updates, kernel/dep cleanup,

@@ -36,9 +36,13 @@ PermitEmptyPasswords no
 HostKey /etc/ssh/ssh_host_ed25519_key
 HostKey /etc/ssh/ssh_host_rsa_key
 MaxAuthTries 3
+MaxSessions 4
 LoginGraceTime 30
 ClientAliveInterval 300
 ClientAliveCountMax 2
+LogLevel VERBOSE
+TCPKeepAlive no
+Compression no
 X11Forwarding no
 AllowAgentForwarding no
 AllowTcpForwarding no
