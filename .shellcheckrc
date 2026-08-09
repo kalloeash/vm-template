@@ -1,0 +1,3 @@
+# Let shellcheck follow the shared library that every module sources.
+external-sources=true
+source-path=SCRIPTDIR/..

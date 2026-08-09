@@ -9,19 +9,17 @@
 SHELL := /usr/bin/env bash
 MODULES_DIR := modules
 TIER ?= base
+export TIER   # reaches the module environment so 80-auditd can self-gate
 
-BASE_MODULES := 10-update 20-user 30-ssh 40-firewall 50-fail2ban 60-sysctl 70-docker
-FULL_MODULES := $(BASE_MODULES) 80-auditd
+# 80-auditd self-gates on $TIER: base tier sets only journald persistence and
+# exits; TIER=full additionally installs auditd + the rule set.
+MODULES := 10-update 20-user 30-ssh 40-firewall 50-fail2ban 60-sysctl 65-hardening 70-docker 80-auditd
 
 .PHONY: harden audit lint preflight report \
-        update user ssh firewall fail2ban sysctl docker auditd
+        update user ssh firewall fail2ban sysctl hardening docker auditd
 
 harden: preflight
-ifeq ($(TIER),full)
-	@for m in $(FULL_MODULES); do bash $(MODULES_DIR)/$$m.sh || exit 1; done
-else
-	@for m in $(BASE_MODULES); do bash $(MODULES_DIR)/$$m.sh || exit 1; done
-endif
+	@for m in $(MODULES); do bash $(MODULES_DIR)/$$m.sh || exit 1; done
 	@bash $(MODULES_DIR)/90-report.sh
 
 preflight:
@@ -40,6 +38,7 @@ ssh: preflight ;       @bash $(MODULES_DIR)/30-ssh.sh
 firewall: preflight ;  @bash $(MODULES_DIR)/40-firewall.sh
 fail2ban: preflight ;  @bash $(MODULES_DIR)/50-fail2ban.sh
 sysctl: preflight ;    @bash $(MODULES_DIR)/60-sysctl.sh
+hardening: preflight ; @bash $(MODULES_DIR)/65-hardening.sh
 docker: preflight ;    @bash $(MODULES_DIR)/70-docker.sh
 auditd: preflight ;    @bash $(MODULES_DIR)/80-auditd.sh
 

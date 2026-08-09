@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 00-preflight — environment assertions + SSH lockout guard.
 # Every other module assumes this passed. See docs/HARDENING.md.
+# shellcheck source=lib/common.sh
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 require_root

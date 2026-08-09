@@ -61,6 +61,17 @@ safe defaults (documented per module). Ordering = numeric prefix.
   `unprivileged_userns_clone=0` (breaks rootless container tooling).
 - Apply with `sysctl --system`; on WSL only write files (shared kernel).
 
+## 65-hardening
+- CIS-Level-1 odds and ends that the Lynis audit flags on a fresh image:
+  - **login.defs**: `UMASK 027`, `PASS_MAX_DAYS 365`, `PASS_MIN_DAYS 1`,
+    `PASS_WARN_AGE 7`, `SHA_CRYPT_MIN_ROUNDS 640000` (AUTH-9230/9286/9328).
+  - **core dumps off**: `limits.d` `* hard/soft core 0` (KRNL-5820), paired with
+    `fs.suid_dumpable=0` in 60-sysctl.
+  - **kernel-module blacklist**: rare network protocols dccp/sctp/rds/tipc
+    (NETW-3200) and usb-storage (USB-1000), via `install … /bin/true`.
+- Packages installed in 10-update on the same audit advice: `libpam-tmpdir`,
+  `debsums`, `apt-show-versions`.
+
 ## 70-docker
 - Official Docker apt repo (per-distro: ubuntu/debian; Kali uses the debian repo with
   its codename mapped), install engine + compose plugin.
