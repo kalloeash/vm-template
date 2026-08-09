@@ -21,6 +21,33 @@ paths validated; a bats unit suite and CI are the main open items. Start here:
 - [tickets/](tickets/) — the agent-ready build plan, one file per unit of work
 - [CONTRIBUTING.md](CONTRIBUTING.md) / [CLAUDE.md](CLAUDE.md) — how to work here
 
+## Quick start
+
+**Prerequisites on the target box:**
+- A login that is in the **`sudo`** group and carries your SSH public key. On a fresh
+  cloud image that is usually `root` or the default `ubuntu`/`admin` user. **Note for
+  Raspberry Pi:** Pi Imager's Ubuntu customization creates your user but does *not* always
+  add it to `sudo` — verify with `groups`, and if it's missing, add it from an
+  already-privileged account: `sudo usermod -aG sudo <you>` (the default `ubuntu` user on
+  the Ubuntu Pi image has sudo).
+- `git` and `make` (not on a minimal image by default).
+
+```bash
+sudo apt update && sudo apt install -y git make
+git clone https://github.com/kalloeash/vm-template
+cd vm-template
+# Pin ADMIN_USER to the account that already holds your SSH key, so hardening keeps that
+# key when it disables root + password login (otherwise you can lock yourself out):
+sudo make harden ADMIN_USER=$(whoami)
+
+# Optional: install the audit tools so `make audit` reports a Lynis index + ssh-audit
+sudo apt install -y lynis ssh-audit
+sudo make audit          # verify only — state checks, ssh-audit, Lynis index; changes nothing
+```
+
+`make harden` is idempotent — re-run it any time. See [docs/DELIVERY.md](docs/DELIVERY.md)
+for the cloud-init and Packer paths.
+
 ## Design in one paragraph
 
 Plain **Bash modules orchestrated by a Makefile** — no Ansible, no agent, no control
