@@ -101,6 +101,26 @@ often *wants* tools a server baseline would remove — so the minimal-packages m
 skipped on Kali by default. RHEL-family is explicitly out (dnf/firewalld double every
 module for zero current need).
 
+### Raspberry Pi 4B / arm64
+
+Ubuntu Server 24.04 ships an official Pi image
+(`ubuntu-24.04-preinstalled-server-arm64+raspi.img.xz`) with the same package set as
+x86_64, so the baseline targets it directly. Verified for arm64 (2026-08-09): arch
+detection returns `arm64`, every installed package has an arm64 candidate, and Docker's
+apt repo resolves `docker-ce` for arm64 (checked in a QEMU arm64 Ubuntu 24.04 container —
+Hetzner ARM stock was unavailable at test time).
+
+Pi-specific points, and how they are handled:
+- **linux-raspi kernel** may not expose every hardening sysctl key → 60-sysctl uses
+  `sysctl -e` to apply what exists and skip the rest instead of aborting.
+- **No GRUB** on the Pi (its own bootloader) → the baseline never touches GRUB, so the
+  one boot-loader Lynis suggestion is moot there anyway.
+- **cloud-init** on the Pi image reads `user-data`/`network-config` from the boot FAT
+  partition, not a cloud datasource → delivery path A (post-boot `make harden`) is the
+  reliable route on a Pi; path B needs the boot-partition variant.
+- Not yet run on physical Pi hardware — the kernel-specific behavior (which exact sysctl
+  keys the linux-raspi kernel omits) can only be confirmed on a real board.
+
 ## 6. Test strategy (summary — full detail in TESTING.md)
 
 Three tiers, cheapest first:
