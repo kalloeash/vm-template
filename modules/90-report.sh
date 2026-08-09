@@ -41,6 +41,12 @@ if command -v lynis >/dev/null; then
   warns="$(grep -c '^warning\[\]=' /var/log/lynis-report.dat 2>/dev/null || echo '?')"
   echo "  hardening index: ${idx:-unknown} (target >= 75; fresh images ~50-65)"
   echo "  open warnings:   ${warns:-0} (address warnings before chasing the score)"
+  # surface what Lynis actually flagged, so the report is actionable
+  if [[ -r /var/log/lynis-report.dat ]]; then
+    awk -F'[|=]' '/^warning\[\]=/{print "    warn: "$2" — "$3}' /var/log/lynis-report.dat 2>/dev/null | head -10
+    [[ "${LYNIS_SUGGESTIONS:-0}" == 1 ]] &&
+      awk -F'[|=]' '/^suggestion\[\]=/{print "    sug:  "$2" — "$3}' /var/log/lynis-report.dat 2>/dev/null | head -30
+  fi
 else
   echo "  lynis not installed (apt-get install lynis) — skipped"
 fi
