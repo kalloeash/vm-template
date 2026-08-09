@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# 40-firewall — ufw default-deny + Docker/ufw bypass handling.
+# See docs/HARDENING.md §40-firewall and tickets/005.
+# shellcheck source=lib/common.sh
+source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
+require_root
+require_distro ubuntu debian kali
+
+SSH_PORT="${SSH_PORT:-22}"
+EXTRA_PORTS="${EXTRA_PORTS:-80/tcp 443/tcp}"
+UFW_DOCKER="${UFW_DOCKER:-0}"
+
+apt_install ufw
+
+# --- base policy (idempotent: ufw allow is a no-op if the rule exists) -------
+ufw_do() { if [[ $DRY_RUN == 1 ]]; then log_changed "ufw $* (dry-run)"; else ufw "$@" >/dev/null; fi; }
+
+ufw_do default deny incoming
+ufw_do default allow outgoing
+ufw_do allow "${SSH_PORT}/tcp"
+for p in $EXTRA_PORTS; do ufw_do allow "$p"; done
+log_ok "ufw rules declared (ssh:${SSH_PORT}, extra: ${EXTRA_PORTS})"
+
+if [[ $DRY_RUN != 1 ]]; then
+  if is_wsl; then
+    log_warn "WSL: not enabling ufw (shared kernel; not representative)"
+  else
+    ufw --force enable >/dev/null
+    log_ok "ufw enabled"
+  fi
+fi
+
+# --- Docker/ufw bypass: containers published on 0.0.0.0 skip ufw entirely ----
+# Warn on any compose port that is not loopback-bound. See DELIVERY/HARDENING notes.
+shopt -s nullglob
+for cf in /opt/*/docker-compose.y*ml /opt/*/*/docker-compose.y*ml; do
+  while IFS= read -r line; do
+    # a published mapping like "8080:8080" or "0.0.0.0:8080:8080" (not 127.0.0.1:)
+    if [[ $line =~ ^[[:space:]]*-[[:space:]]*\"?([0-9.]+:)?[0-9]+:[0-9]+ ]] \
+      && [[ ! $line =~ 127\.0\.0\.1: ]]; then
+      log_warn "compose $cf publishes a non-loopback port: ${line#"${line%%[![:space:]]*}"} — ufw does NOT gate this"
+    fi
+  done < <(grep -A20 -E '^\s*ports:' "$cf" 2>/dev/null || true)
+done
+shopt -u nullglob
+
+if [[ $UFW_DOCKER == 1 ]]; then
+  # The container IP rotates on restart, so static after.rules rot — use the tool.
+  if command -v ufw-docker >/dev/null; then
+    log_ok "ufw-docker already installed"
+  elif [[ $DRY_RUN == 1 ]]; then
+    log_changed "would install ufw-docker + wire DOCKER-USER (dry-run)"
+  else
+    curl -fsSL https://raw.githubusercontent.com/chaifeng/ufw-docker/master/ufw-docker \
+      -o /usr/local/bin/ufw-docker && chmod 0755 /usr/local/bin/ufw-docker
+    ufw-docker install >/dev/null
+    systemctl reload ufw >/dev/null 2>&1 || true
+    log_changed "installed ufw-docker + DOCKER-USER wiring"
+  fi
+else
+  log_ok "UFW_DOCKER not requested (bind container ports to 127.0.0.1 instead)"
+fi
