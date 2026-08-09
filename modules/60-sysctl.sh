@@ -41,6 +41,8 @@ if [[ $DRY_RUN == 1 ]]; then
 elif is_wsl; then
   log_warn "WSL shares the host kernel — wrote the file but skipping 'sysctl --system'"
 else
-  sysctl --system >/dev/null
-  log_changed "sysctl values applied"
+  # -e: ignore unknown keys instead of aborting. The Raspberry Pi kernel
+  # (linux-raspi) and other non-generic kernels may not expose every key.
+  sysctl -e --system >/dev/null
+  log_changed "sysctl values applied (unknown keys ignored)"
 fi
