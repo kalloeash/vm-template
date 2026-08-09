@@ -53,7 +53,7 @@ ssh_root "DEBIAN_FRONTEND=noninteractive apt-get update -qq && apt-get install -
 
 # NOPASSWD so the admin can re-run harden/audit non-interactively after root SSH
 # is disabled. This also exercises the SUDO_NOPASSWD code path.
-HARDEN="make harden ADMIN_USER=admin SUDO_NOPASSWD=1 FORCE_LOCKOUT_OK=1"
+HARDEN="make harden ADMIN_USER=admin SUDO_NOPASSWD=1 FORCE_LOCKOUT_OK=1 LYNIS_SUGGESTIONS=${LYNIS_SUGGESTIONS:-0}"
 
 echo "--- harden (run 1, as root) ---"
 ssh_root "cd /opt/vm-template && $HARDEN"

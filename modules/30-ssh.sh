@@ -52,6 +52,9 @@ EOF
 if [[ $DRY_RUN == 1 ]]; then
   log_ok "sshd config test + reload (dry-run)"
 else
+  # sshd -t needs the privilege-separation dir; a fresh boot or an openssh
+  # upgrade can leave it absent, which fails the test with a misleading error.
+  [[ -d /run/sshd ]] || mkdir -p /run/sshd
   if sshd -t 2>/tmp/vmt-sshd-test.err; then
     log_ok "sshd -t passed"
     if is_wsl; then
