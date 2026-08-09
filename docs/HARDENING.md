@@ -15,7 +15,7 @@ safe defaults (documented per module). Ordering = numeric prefix.
 ## 10-update
 - `apt-get update` + `dist-upgrade -y` (with dpkg options to keep local config files).
 - Install + enable `unattended-upgrades`; deploy the `52autoreboot.conf` policy from
-  encryptedlinkvm (also `-updates`, auto-reboot 04:00, kernel/dependency cleanup).
+  the reference deployment (also `-updates`, auto-reboot 04:00, kernel/dependency cleanup).
   On Kali: origins pattern adapted to kali-rolling, auto-reboot off by default.
 - Install `needrestart`, set `$nrconf{restart} = 'a'` (automatic service restarts).
 - Verify systemd-timesyncd (or chrony if present) is active and synchronized.

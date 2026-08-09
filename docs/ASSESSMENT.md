@@ -1,10 +1,10 @@
 # Assessment — generalized VM baseline
 
-Written 2026-08-08, based on: the encryptedlinkvm QUICKSTART (the manual process this
-template generalizes), the encryptedlink production compose/nginx configs, and the web
-research listed at the bottom.
+Written 2026-08-08, based on: a real production VM's manual setup guide (the process this
+template generalizes), its docker-compose/nginx configs, and the web research listed at
+the bottom.
 
-## 1. What you do today (from encryptedlinkvm QUICKSTART)
+## 1. A representative manual setup (the process this generalizes)
 
 | Step | Quality |
 |---|---|
@@ -54,7 +54,7 @@ Ordered by how much it matters:
 
 ## 3. Mistakes in the current process (yes, you asked)
 
-1. **`docker login ghcr.io -u kalloeash -p YOUR_GITHUB_PAT`** — puts the PAT in shell
+1. **`docker login ghcr.io -u USERNAME -p YOUR_GITHUB_PAT`** — puts the PAT in shell
    history and the process list. Use `--password-stdin`. Same for the generated secrets
    `echo`'d to the terminal (scrollback + history); generate straight into the file.
 2. **`cp jail.conf jail.local`** — copying the entire fail2ban config as an override is
@@ -69,7 +69,7 @@ Ordered by how much it matters:
    Your manual process survives because a human is careful; scripts must encode it.
 5. QUICKSTART troubleshooting says compose **healthchecks were removed** to fix a startup
    issue — that traded away self-healing signal. Worth revisiting separately (the stack
-   compose in encryptedlinkapi has working healthchecks since the 127.0.0.1 fix).
+   compose in the reference app has working healthchecks since the 127.0.0.1 fix).
 
 ## 4. Tooling decision
 

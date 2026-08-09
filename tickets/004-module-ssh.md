@@ -5,7 +5,7 @@
 
 ## Context
 
-The biggest gap found in the assessment (§2.1): the encryptedlinkvm process recommends
+The biggest gap found in the assessment (§2.1): the original manual process recommends
 keys but never edits `sshd_config`, so a provider image with `PasswordAuthentication yes`
 stays brute-forceable. This module closes that, and it is the one module that can lock the
 operator out — so the preflight guard from ticket 001 is a hard precondition.

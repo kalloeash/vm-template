@@ -15,7 +15,7 @@ independent grade (Lynis index, ssh-audit, Trivy).
   files, sshd_config, docker daemon config, privileged execs). Base tier always sets
   journald `Storage=persistent`.
 - `90-report`: per-module `CHANGED/OK` table, `lynis audit system --quick` hardening
-  index, `ssh-audit localhost` summary, `trivy image` on any running encryptedlink images,
+  index, `ssh-audit localhost` summary, `trivy image` on any running app images,
   and the reboot-required flag. `AUDIT_ONLY=1` runs report without any mutation (this is
   `make audit`).
 

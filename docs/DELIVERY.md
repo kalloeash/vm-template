@@ -11,7 +11,7 @@ support three entry paths, cheapest-to-adopt first, most-mature last.
 git clone <repo> && cd vm-template && sudo make harden
 ```
 
-The path the encryptedlinkvm process uses today. Right for a box that already exists, or a
+The path the original manual process uses today. Right for a box that already exists, or a
 first run you want to watch. Honest downside: there is a window between boot and `make
 harden` where the machine runs with provider defaults (often password SSH on). Mitigate by
 running it as the very first action, before opening the app ports.

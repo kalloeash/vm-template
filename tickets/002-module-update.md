@@ -5,7 +5,7 @@
 
 ## Context
 
-Generalizes encryptedlinkvm's update step + `52autoreboot.conf`, and closes the
+Generalizes the reference deployment's update step + `52autoreboot.conf`, and closes the
 needrestart gap (assessment §2.5): unattended-upgrades reboots for kernel/libc but leaves
 daemons running against deleted libraries after other upgrades.
 

@@ -7,7 +7,7 @@
 
 ufw alone does not gate Docker-published ports: Docker writes DNAT rules into the FORWARD
 chain, which ufw's INPUT rules never see (assessment §2, research sources). A container
-published on `0.0.0.0` is internet-reachable regardless of ufw. encryptedlinkvm already
+published on `0.0.0.0` is internet-reachable regardless of ufw. The reference deployment already
 dodges this by binding containers to `127.0.0.1`; this module enforces the base firewall
 and makes the Docker interaction explicit rather than incidental.
 

@@ -5,7 +5,7 @@
 
 ## Context
 
-Port the encryptedlinkvm fail2ban jail (already good — incremental bans to 5w) and fix
+Port the reference deployment's fail2ban jail (already good — incremental bans to 5w) and fix
 the `jail.conf → jail.local` full-copy anti-pattern noted in assessment §3.2.
 
 ## Scope

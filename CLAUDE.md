@@ -36,6 +36,8 @@ maintainer with a note — never silently skipped.
 
 ## Baseline
 
-No modules implemented yet; the repo is scaffold + specs + tickets as of 2026-08-09.
-`00-preflight.sh` and `lib/common.sh` are the reference pattern (ticket 001 finalizes
-them).
+Base modules (00–90) implemented and verified on a real Ubuntu 24.04 VM as of
+2026-08-09: all state checks pass, `ssh-audit` clean, idempotent, Lynis hardening index
+78 (see [docs/lynis-baseline.md](docs/lynis-baseline.md)). arm64 (incl. Raspberry Pi 4B)
+paths validated. Open: bats unit suite (010), CI (011), cloud-init end-to-end (013).
+A PR must not drop the Lynis index below the recorded baseline.

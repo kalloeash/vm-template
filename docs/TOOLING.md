@@ -10,7 +10,7 @@ says why so the decision is a record, not a habit.
 | GNU Make | orchestrates modules; named targets, ordering, per-module reruns | core |
 | Bash 4+ | module language | core |
 | ufw | host firewall (default deny inbound) | core |
-| fail2ban | SSH brute-force bans (incremental, from encryptedlinkvm) | core |
+| fail2ban | SSH brute-force bans (incremental) | core |
 | unattended-upgrades | automatic security/`-updates` patching + reboot policy | core |
 | needrestart | restart daemons after library upgrades (the gap unattended-upgrades leaves) | **added** |
 | Docker CE + compose plugin | container runtime, official apt repo | core |
@@ -32,9 +32,9 @@ says why so the decision is a record, not a habit.
 |---|---|---|
 | shellcheck | shell static analysis | core |
 | shfmt | shell formatter | core |
-| pre-commit | hook runner (mirrors the other encryptedlink repos) | core |
+| pre-commit | hook runner (common repo pattern) | core |
 | gitleaks | secret scanning | core |
-| conventional-pre-commit | enforce Conventional Commits at commit time | **added** — the encryptedlink repos only *use* the convention; here we enforce it |
+| conventional-pre-commit | enforce Conventional Commits at commit time | **added** — many projects only *use* the convention; here we enforce it |
 | **bats-core** | module unit/assertion tests | **added** — see below |
 | hadolint | Dockerfile linting (for any images this repo ships) | **added** |
 | hcloud CLI | create/destroy the throwaway acceptance VM (Tier 3) | core (test harness) |

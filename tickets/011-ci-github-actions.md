@@ -5,7 +5,7 @@
 
 ## Context
 
-Mirror the encryptedlink repos' `pr.yml` pattern so the same gates run on every PR.
+Mirror a standard `pr.yml` pattern so the same gates run on every PR.
 Draft until the test harness (010) exists to call.
 
 ## Open question (blocks `ready`)

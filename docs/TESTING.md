@@ -12,7 +12,7 @@ pre-commit run --all-files    # shellcheck, shfmt, bash -n
   real shell defects.
 - **shfmt** keeps the modules uniformly formatted (mirrors the prettier/dotnet-format
   role in the other repos).
-- CI mirrors the same hooks (same pattern as encryptedlink's `pr.yml` precommit job).
+- CI mirrors the same hooks (a common `pr.yml` precommit pattern).
 
 ## Tier 2 — WSL smoke test (minutes, free, local)
 
@@ -72,5 +72,5 @@ Acceptance criteria per release:
 
 Keep `docs/lynis-baseline.md` with the hardening-index history per distro (floor 75). A PR
 that drops the index below the recorded baseline fails review — same philosophy as the
-test-count baselines in the encryptedlink CLAUDE.md files. Warnings are tracked alongside
+test-count baselines many projects keep in a CLAUDE.md or similar. Warnings are tracked alongside
 the number; a PR may not add a new unaddressed Lynis warning even if the score holds.

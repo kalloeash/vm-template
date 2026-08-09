@@ -5,7 +5,7 @@
 
 ## Context
 
-Generalizes the encryptedlinkvm Docker install and closes the unbounded-logs gap
+Generalizes the reference deployment's Docker install and closes the unbounded-logs gap
 (assessment §2, "most common self-inflicted VPS outage"): no `daemon.json` means
 uncapped json-file logs that eventually fill the disk.
 

@@ -2,11 +2,14 @@
 
 Opinionated, idempotent baseline for a fresh Debian-family VM (Ubuntu 22.04/24.04,
 Debian 12/13; Kali best-effort). One `make harden` takes a stock cloud image to the
-hardened state that [encryptedlinkvm](https://github.com/kalloeash/encryptedlinkvm)'s
-QUICKSTART builds by hand — plus the gaps that manual process misses.
+hardened state a typical manual setup guide builds by hand — plus the gaps that manual
+process usually misses (SSH host-key hygiene, journald persistence, Docker log caps,
+kernel/sysctl, and more).
 
-**Status: design + assessment phase** (2026-08-09). Specs and tickets are complete;
-module implementations follow. Start here:
+**Status: base modules implemented and verified** on a real Ubuntu 24.04 VM
+(2026-08-09) — all controls pass, `ssh-audit` clean, idempotent, Lynis hardening index
+78 (see [docs/lynis-baseline.md](docs/lynis-baseline.md)). arm64 (incl. Raspberry Pi 4B)
+paths validated; a bats unit suite and CI are the main open items. Start here:
 
 - [docs/ASSESSMENT.md](docs/ASSESSMENT.md) — gap analysis, decisions, mistakes found in
   the manual process, research sources
@@ -39,7 +42,7 @@ vm-template/
 │   ├── 20-user.sh        # admin user + sudo, stop using root
 │   ├── 30-ssh.sh         # keys-only, no root login, modern algos (ssh-audit clean)
 │   ├── 40-firewall.sh    # ufw default-deny + Docker DOCKER-USER integration
-│   ├── 50-fail2ban.sh    # sshd jail with incremental bans (from encryptedlinkvm)
+│   ├── 50-fail2ban.sh    # sshd jail with incremental bans
 │   ├── 60-sysctl.sh      # network + kernel hardening (rp_filter, syncookies, ptrace…)
 │   ├── 70-docker.sh      # official repo, daemon.json (log caps, live-restore)
 │   ├── 80-auditd.sh      # audit trail (optional tier)
@@ -81,4 +84,4 @@ make firewall EXTRA_PORTS="80/tcp 443/tcp"
 
 ## License
 
-Proprietary — © 2026 kalloeash. All rights reserved.
+[MIT](LICENSE) © 2026 kalloeash.
