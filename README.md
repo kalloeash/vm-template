@@ -3,13 +3,16 @@
 Opinionated, idempotent baseline for a fresh Debian-family VM (Ubuntu 22.04/24.04,
 Debian 12/13; Kali best-effort). One `make harden` takes a stock cloud image to the
 hardened state a typical manual setup guide builds by hand — plus the gaps that manual
-process usually misses (SSH host-key hygiene, journald persistence, Docker log caps,
-kernel/sysctl, and more).
+process usually misses (restricting which SSH host keys are offered, journald
+persistence, Docker log caps, kernel/sysctl, and more).
 
 **Status: base modules implemented and verified** on a real Ubuntu 24.04 VM
 (2026-08-09) — all controls pass, `ssh-audit` clean, idempotent, Lynis hardening index
-78 (see [docs/lynis-baseline.md](docs/lynis-baseline.md)). arm64 (incl. Raspberry Pi 4B)
-paths validated; a bats unit suite and CI are the main open items. Start here:
+78 (see [docs/lynis-baseline.md](docs/lynis-baseline.md)). arm64 paths validated in a
+QEMU arm64 container (package availability, arch detection, Docker repo); **physical
+Raspberry Pi acceptance is still pending** — which sysctl keys the `linux-raspi` kernel
+omits can only be confirmed on a real board. A bats unit suite and CI are the other main
+open items. Start here:
 
 - [docs/ASSESSMENT.md](docs/ASSESSMENT.md) — gap analysis, decisions, mistakes found in
   the manual process, research sources
