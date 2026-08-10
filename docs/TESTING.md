@@ -70,6 +70,12 @@ ssh <admin>@<ip> "cd vm-template && make audit && sudo make harden"  # audit + i
 hcloud server delete vmtpl-test
 ```
 
+`scripts/test-hetzner.sh` runs this end to end and deletes the server on every exit path.
+`EXTENDED=1` adds the criteria that need a deliberate break on a real host: the audit gate
+(disable ufw, `make audit` must exit 1), the sshd rollback (a drop-in the daemon rejects
+must not survive), both privilege models, and `TIER=full`. Set `HCLOUD_EXTRA_KEYS` to your
+usual ssh key so a failed run leaves a box you can log into before it is destroyed.
+
 Acceptance criteria per release:
 
 1. `make harden` completes on a stock image with zero prompts.

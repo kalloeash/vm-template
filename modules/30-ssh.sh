@@ -104,10 +104,16 @@ fi
 [[ -d /run/sshd ]] || mkdir -p /run/sshd
 
 if ! sshd -t 2>/tmp/vmt-sshd-test.err; then
-  log_warn "sshd -t FAILED — rolling back, config not activated:"
   cat /tmp/vmt-sshd-test.err >&2
-  [[ $conf_changed == 1 ]] && rollback
-  die "sshd rejected the hardening drop-in"
+  if [[ $conf_changed == 1 ]]; then
+    log_warn "sshd -t FAILED after writing $conf — rolling back, config not activated"
+    rollback
+    die "sshd rejected the hardening drop-in"
+  fi
+  # Our file was already on disk unchanged, so it is not what sshd is objecting to.
+  # Saying otherwise sends whoever reads this at the wrong file.
+  log_warn "sshd -t FAILED but $conf was unchanged — the problem is elsewhere in the config"
+  die "sshd config is invalid; $conf left as it was"
 fi
 log_ok "sshd -t passed"
 [[ -n $backup ]] && rm -f "$backup"

@@ -7,6 +7,12 @@ warning. Floor: 75 (see docs/TESTING.md).
 | Date | Distro | Server | Index | Open warnings | Notes |
 |---|---|---|---|---|---|
 | 2026-08-09 | ubuntu-24.04 (noble) | cpx11 | **78** | 1 | only PKGS-7388 (false positive, below) |
+| 2026-08-10 | ubuntu-24.04 (noble) | cpx11 | **78** | 1 | after the review remediation series; index held, 4 runs |
+| 2026-08-10 | debian-13 (trixie) | cpx11 | **78–79** | 1 | first recorded Debian baseline; 79 on the standard run, 78 with `EXTENDED=1` |
+
+The Debian pair is not a regression: the `EXTENDED=1` run deliberately breaks and
+restores controls (ufw down, a rejected sshd drop-in) before Lynis runs, and one point of
+the index moves with it. Compare like for like — standard runs against standard runs.
 
 ## Known false positive: PKGS-7388
 
