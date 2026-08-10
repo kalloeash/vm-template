@@ -9,7 +9,17 @@ require_distro ubuntu debian kali
 ADMIN_USER="${ADMIN_USER:-admin}"
 # crypt(3) hash, e.g. `openssl passwd -6` or `mkpasswd -m sha512crypt`.
 # Empty (the default) means a key-only account with no password at all.
+#
+# Pass this through the ENVIRONMENT, not as a make variable: make expands `$` in
+# command-line variables, so `make user ADMIN_PASSWORD_HASH='$6$salt$...'` arrives here
+# mangled. `sudo ADMIN_PASSWORD_HASH='...' make user` works. ADMIN_PASSWORD_HASH_FILE
+# avoids the question entirely and keeps the hash out of the process list.
 ADMIN_PASSWORD_HASH="${ADMIN_PASSWORD_HASH:-}"
+ADMIN_PASSWORD_HASH_FILE="${ADMIN_PASSWORD_HASH_FILE:-}"
+if [[ -n $ADMIN_PASSWORD_HASH_FILE ]]; then
+  [[ -r $ADMIN_PASSWORD_HASH_FILE ]] || die "ADMIN_PASSWORD_HASH_FILE is not readable: $ADMIN_PASSWORD_HASH_FILE"
+  ADMIN_PASSWORD_HASH="$(head -n1 "$ADMIN_PASSWORD_HASH_FILE" | tr -d '\r\n')"
+fi
 
 # The name is interpolated into a sudoers file — reject anything that is not a
 # plain login name before it gets there.
@@ -34,7 +44,12 @@ pw_state() { passwd -S "$1" 2>/dev/null | awk '{print $2}'; }
 
 if [[ -n $ADMIN_PASSWORD_HASH ]]; then
   [[ $ADMIN_PASSWORD_HASH == \$*\$* ]] ||
-    die "ADMIN_PASSWORD_HASH must be a crypt(3) hash (openssl passwd -6), not a plaintext password"
+    die "ADMIN_PASSWORD_HASH is not a crypt(3) hash: '${ADMIN_PASSWORD_HASH:0:12}...'
+         Generate one with: openssl passwd -6
+         If you passed it as a make variable, that is the problem — make expands \$ in
+         command-line variables. Use the environment instead:
+           sudo ADMIN_PASSWORD_HASH=\"\$(openssl passwd -6)\" make user ADMIN_USER=$ADMIN_USER
+         or point ADMIN_PASSWORD_HASH_FILE at a file containing the hash."
   cur_hash="$(getent shadow "$ADMIN_USER" 2>/dev/null | cut -d: -f2 || true)"
   if [[ $cur_hash == "$ADMIN_PASSWORD_HASH" ]]; then
     log_ok "$ADMIN_USER password hash up to date"
