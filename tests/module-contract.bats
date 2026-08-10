@@ -62,16 +62,17 @@ setup() {
   done
 }
 
-@test "only the two modules with no drop-in mechanism edit a config in place" {
+@test "only the modules with no drop-in mechanism edit a config in place" {
   # Modules deploy drop-ins; editing a vendor file in place is the anti-pattern the
-  # assessment calls out (jail.conf -> jail.local). /etc/login.defs (65-hardening) and
-  # journald.conf (80-auditd) have no drop-in mechanism, so they are the exceptions.
-  # A new `sed -i` anywhere else should have to justify itself in review.
+  # assessment calls out (jail.conf -> jail.local). Three files have no drop-in
+  # mechanism: /etc/login.defs (65-hardening), journald.conf (80-auditd) and
+  # /etc/default/ufw (40-firewall, clearing IPT_SYSCTL so ufw stops reverting the
+  # sysctls 60-sysctl sets). A new `sed -i` anywhere else must justify itself in review.
   run grep -rln 'sed -i' "$REPO_ROOT/modules/"
   while IFS= read -r file; do
     [ -n "$file" ] || continue
     case "$(basename "$file")" in
-      65-hardening.sh | 80-auditd.sh) continue ;;
+      40-firewall.sh | 65-hardening.sh | 80-auditd.sh) continue ;;
       *) echo "unexpected in-place config edit in $file" >&2 && return 1 ;;
     esac
   done <<<"$output"
