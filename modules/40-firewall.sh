@@ -37,12 +37,33 @@ ufw_do allow "${SSH_PORT}/tcp"
 for p in $EXTRA_PORTS; do ufw_do allow "$p"; done
 log_ok "ufw rules declared (ssh:${SSH_PORT}, extra: ${EXTRA_PORTS:-none})"
 
-if [[ $DRY_RUN != 1 ]]; then
-  if is_wsl; then
-    log_warn "WSL: not enabling ufw (shared kernel; not representative)"
+# --- stop ufw from owning kernel tuning --------------------------------------
+# ufw ships /etc/ufw/sysctl.conf and applies it on every enable and reload. On Ubuntu it
+# contains `net/ipv4/conf/all/log_martians=0`, which silently reverts the value 60-sysctl
+# sets — not just here, but any time an admin runs `ufw reload` months later. Point
+# IPT_SYSCTL at nothing so 60-sysctl is the single owner of sysctl policy; everything
+# ufw's file sets is already in 99-vmt-hardening.conf, at least as strictly.
+if [[ $DRY_RUN == 1 ]]; then
+  log_ok "ufw IPT_SYSCTL + enable (dry-run)"
+elif is_wsl; then
+  log_warn "WSL: not enabling ufw (shared kernel; not representative)"
+else
+  if grep -qE '^IPT_SYSCTL=$' /etc/default/ufw; then
+    log_ok "ufw does not apply its own sysctls"
+  else
+    # /etc/default/ufw is a settings file with other keys to preserve, so this is an
+    # in-place edit rather than a drop-in — ufw offers no drop-in mechanism for it.
+    sed -i -E 's|^#?IPT_SYSCTL=.*|IPT_SYSCTL=|' /etc/default/ufw
+    grep -qE '^IPT_SYSCTL=$' /etc/default/ufw || echo 'IPT_SYSCTL=' >>/etc/default/ufw
+    log_changed "ufw IPT_SYSCTL cleared (60-sysctl owns kernel tuning)"
+  fi
+
+  # Enabling an already-active ufw reloads it, which re-applies rules for no reason.
+  if ufw status 2>/dev/null | grep -qi '^Status: active'; then
+    log_ok "ufw already active"
   else
     ufw --force enable >/dev/null
-    log_ok "ufw enabled"
+    log_changed "ufw enabled"
   fi
 fi
 

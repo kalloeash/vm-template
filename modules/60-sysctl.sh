@@ -23,6 +23,9 @@ net.ipv6.conf.all.accept_source_route = 0
 net.ipv4.conf.all.log_martians = 1
 net.ipv4.tcp_syncookies = 1
 net.ipv4.icmp_echo_ignore_broadcasts = 1
+# ufw's own sysctl.conf used to set this; 40-firewall now stops ufw applying that file,
+# so anything worth keeping from it lives here instead.
+net.ipv4.icmp_ignore_bogus_error_responses = 1
 # --- kernel ---
 kernel.kptr_restrict = 2
 kernel.dmesg_restrict = 1
