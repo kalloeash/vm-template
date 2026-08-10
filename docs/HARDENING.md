@@ -23,7 +23,17 @@ safe defaults (documented per module). Ordering = numeric prefix.
 ## 20-user
 - Create admin user (`ADMIN_USER`, default `admin`; on Kali reuse `kali`), add to sudo,
   copy root's `authorized_keys` if the user has none.
-- No password set (keys only); `sudo` NOPASSWD optional (`SUDO_NOPASSWD=1`, default off).
+- Two privilege models, picked by whether a password exists:
+  - **key-only** (default): the account is created with a locked password, so `sudo`
+    gets a `NOPASSWD` drop-in — otherwise the admin could log in by key and then have
+    nothing to type at the `sudo` prompt.
+  - **password**: set `ADMIN_PASSWORD_HASH` to a crypt(3) hash (`openssl passwd -6`);
+    the password is applied with `chpasswd -e` and `sudo` asks for it.
+- `SUDO_NOPASSWD` still overrides the default, but the combination "no usable password
+  and `SUDO_NOPASSWD=0`" is rejected with a fatal error rather than shipped: after
+  30-ssh disables root login it leaves no path to root.
+- A pre-existing account's password state is never changed; the model is derived from
+  what `passwd -S` reports.
 
 ## 30-ssh
 - Drop-in `/etc/ssh/sshd_config.d/10-hardening.conf` (never edit the main file):
