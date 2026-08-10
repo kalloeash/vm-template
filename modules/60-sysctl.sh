@@ -62,8 +62,13 @@ else
   # (linux-raspi) and other non-generic kernels may not expose every key.
   sysctl -e --system >/dev/null
   after="$(live_values)"
-  if [[ $conf_changed == 1 || $before != "$after" ]]; then
-    log_changed "sysctl values applied (unknown keys ignored)"
+  if [[ $conf_changed == 1 ]]; then
+    log_changed "sysctl values applied (config changed; unknown keys ignored)"
+  elif [[ $before != "$after" ]]; then
+    # Name the keys that moved. A key that moves on a converged host every run is a
+    # signal worth reading, not noise to hide behind a generic message.
+    moved="$(comm -13 <(sort <<<"$before") <(sort <<<"$after") | cut -d= -f1 | tr '\n' ' ')"
+    log_changed "sysctl values applied (moved:${moved:- none})"
   else
     log_ok "sysctl values already applied"
   fi
