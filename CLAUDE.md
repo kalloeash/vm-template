@@ -36,12 +36,17 @@ maintainer with a note — never silently skipped.
 
 ## Baseline
 
-Base modules (00–90) implemented and verified on a real Ubuntu 24.04 VM as of
-2026-08-09: all state checks pass, `ssh-audit` clean, idempotent, Lynis hardening index
-78 (see [docs/lynis-baseline.md](docs/lynis-baseline.md)). arm64 paths validated in QEMU;
-physical Raspberry Pi acceptance still pending. Open: bats unit suite (010), CI (011),
-cloud-init end-to-end (013), SSH host-key hygiene (015).
-A PR must not drop the Lynis index below the recorded baseline.
+Base modules (00–90) implemented and verified on throwaway Ubuntu 24.04 and Debian 13
+VMs as of 2026-08-10: all mandatory controls pass, second run reports no changes,
+`ssh-audit` clean, lockout drill passed, `make audit` exits 1 on a broken control. Lynis
+77–79 (see [docs/lynis-baseline.md](docs/lynis-baseline.md)). arm64: the real baseline
+runs on aarch64 in CI every PR. cloud-init first-boot delivery verified end to end.
+
+Open: the SSH lockout drill on arm64 (needs an ARM VM), physical Raspberry Pi
+acceptance, and two drafts — CrowdSec evaluation (012) and Packer (014).
+
+A PR must not drop the Lynis index below the recorded baseline, and must keep `make test`
+and every CI job green.
 
 Claims in the docs must describe what the code does today. When a spec line describes
 work that is not implemented, either implement it or move it to a ticket and say so —

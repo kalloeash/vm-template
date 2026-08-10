@@ -6,13 +6,24 @@ hardened state a typical manual setup guide builds by hand — plus the gaps tha
 process usually misses (restricting which SSH host keys are offered, journald
 persistence, Docker log caps, kernel/sysctl, and more).
 
-**Status: base modules implemented and verified** on a real Ubuntu 24.04 VM
-(2026-08-09) — all controls pass, `ssh-audit` clean, idempotent, Lynis hardening index
-78 (see [docs/lynis-baseline.md](docs/lynis-baseline.md)). arm64 paths validated in a
-QEMU arm64 container (package availability, arch detection, Docker repo); **physical
-Raspberry Pi acceptance is still pending** — which sysctl keys the `linux-raspi` kernel
-omits can only be confirmed on a real board. A bats unit suite and CI run on every PR
-(`make test`). Start here:
+**Status: implemented and verified.** Every module runs on throwaway Ubuntu 24.04 and
+Debian 13 VMs: all mandatory controls pass, a second run reports no changes, `ssh-audit`
+is clean, the lockout drill passes, and `make audit` exits non-zero when a control is
+broken. Lynis hardening index 77–79 (see
+[docs/lynis-baseline.md](docs/lynis-baseline.md)). First-boot delivery via cloud-init is
+verified end to end. On **arm64** the baseline is applied for real on aarch64 hardware by
+CI on every PR.
+
+Verification: 54 unit tests (`make test`), CI running the real baseline on amd64 and
+arm64, and a one-command acceptance run against a disposable VM
+([`scripts/test-hetzner.sh`](scripts/test-hetzner.sh)).
+
+Two things are **not** verified and are not claimed to be: the SSH lockout drill on
+arm64 (it needs a VM reachable from outside, and ARM capacity was unavailable), and
+physical Raspberry Pi hardware — which sysctl keys the `linux-raspi` kernel omits, and
+the USB-root detection in `65-hardening`, can only be confirmed on a real board.
+
+Start here:
 
 - [docs/ASSESSMENT.md](docs/ASSESSMENT.md) — gap analysis, decisions, mistakes found in
   the manual process, research sources
@@ -22,6 +33,7 @@ omits can only be confirmed on a real board. A bats unit suite and CI run on eve
 - [docs/TESTING.md](docs/TESTING.md) — three-tier test strategy
 - [docs/STYLE.md](docs/STYLE.md) — writing rules (enforced), including the no-AI-language rule
 - [tickets/](tickets/) — the agent-ready build plan, one file per unit of work
+- [CHANGELOG.md](CHANGELOG.md) — what changed per release, and the known gaps
 - [CONTRIBUTING.md](CONTRIBUTING.md) / [CLAUDE.md](CLAUDE.md) — how to work here
 
 ## Quick start
@@ -84,9 +96,13 @@ vm-template/
 │   ├── 80-auditd.sh      # audit trail (optional tier)
 │   └── 90-report.sh      # summary + Lynis hardening index
 ├── lib/common.sh         # log helpers, changed/ok tracking, os-release detection
-├── scripts/lint-language.sh # STYLE.md enforcement (no AI attribution / AI-tell words)
+├── scripts/
+│   ├── lint-language.sh     # STYLE.md enforcement (no AI attribution / AI-tell words)
+│   ├── test-hetzner.sh      # tier-3 acceptance on a disposable VM (EXTENDED=1 for more)
+│   └── test-cloud-init.sh   # first-boot delivery, verified end to end
+├── examples/cloud-init.yaml # delivery path B, ready to paste into user-data
 ├── tests/                   # bats-core suite: make test
-├── .github/workflows/ci.yml # lint + pre-commit + bats + DRY_RUN harden on every PR
+├── .github/workflows/ci.yml # lint, pre-commit, bats, and the real baseline on amd64+arm64
 ├── tickets/                 # file-based backlog, one unit of work per file
 ├── docs/
 │   ├── ASSESSMENT.md     # gap analysis, decisions, mistakes found, research sources
@@ -94,21 +110,32 @@ vm-template/
 │   ├── TOOLING.md        # every tool, why it's in or out
 │   ├── TESTING.md        # lint → WSL smoke → throwaway Hetzner VM acceptance
 │   └── STYLE.md          # writing rules, enforced by pre-commit
-├── CONTRIBUTING.md · CLAUDE.md
+├── CONTRIBUTING.md · CLAUDE.md · CHANGELOG.md
 └── .pre-commit-config.yaml  # shellcheck, shfmt, gitleaks, conventional-commits, language
 ```
 
-## Intended usage (once implemented)
+## Usage
 
 ```bash
-# on a fresh VM, as root or sudo-capable user:
+# on a fresh VM, as root or a sudo-capable user:
 git clone <this repo> && cd vm-template
-make harden                 # everything, in order, with a lockout guard
-make audit                  # Lynis score + ssh-audit + assertions, changes nothing
+sudo make harden            # everything, in order, with a lockout guard
+sudo make audit             # Lynis score + ssh-audit + assertions, changes nothing
 
 # or piecemeal:
-make ssh                    # just the SSH module
-make firewall EXTRA_PORTS="80/tcp 443/tcp"
+sudo make ssh               # just the SSH module
+sudo make firewall EXTRA_PORTS="80/tcp 443/tcp"
+
+# workstation side:
+make lint                   # shellcheck + shfmt
+make test                   # bats unit suite
+```
+
+Verifying a change against a real VM (needs `hcloud` and an API token):
+
+```bash
+export HCLOUD_SSH_KEY=<key-name-in-your-project> SSH_KEY_FILE=~/.ssh/id_ed25519
+EXTENDED=1 scripts/test-hetzner.sh ubuntu-24.04   # creates, hardens, drills, destroys
 ```
 
 ## Non-goals
