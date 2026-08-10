@@ -18,6 +18,13 @@ TIER="${TIER:-base}"
 # regression below the recorded baseline fail the audit.
 LYNIS_MIN="${LYNIS_MIN:-0}"
 
+# A dry run applied nothing, so asserting end state would report the pre-existing host
+# and fail for the wrong reason. Say so and stop.
+if [[ $DRY_RUN == 1 ]]; then
+  echo "DRY_RUN=1: nothing was applied — end-state verification skipped"
+  exit 0
+fi
+
 pass=0
 miss=0
 skipped=0

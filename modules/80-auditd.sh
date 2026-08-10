@@ -15,8 +15,8 @@ if [[ -f /etc/systemd/journald.conf ]]; then
   else
     install -d -m 0755 /var/log/journal
     sed -i 's/^\s*#\?\s*Storage=.*/Storage=persistent/' /etc/systemd/journald.conf
-    grep -qE '^Storage=persistent' /etc/systemd/journald.conf \
-      || echo 'Storage=persistent' >>/etc/systemd/journald.conf
+    grep -qE '^Storage=persistent' /etc/systemd/journald.conf ||
+      echo 'Storage=persistent' >>/etc/systemd/journald.conf
     is_wsl || systemctl restart systemd-journald >/dev/null 2>&1 || true
     log_changed "journald set to persistent"
   fi

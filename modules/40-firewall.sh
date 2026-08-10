@@ -20,7 +20,11 @@ UFW_DOCKER_REF="${UFW_DOCKER_REF:-78366b6afe6e566cd53f7e55341889c2e3c863e7}" # t
 UFW_DOCKER_SHA256="${UFW_DOCKER_SHA256:-c3e5f0bf6061a3a2e7d7ac06abc80665707d2f4c91e90d76f22e4168863fb472}"
 # Where to look for compose files declaring a publish. The runtime check below is the
 # one that catches everything actually running; this only reads intent from disk.
+# Depth 4 covers /opt/<app>/, /opt/<stack>/<app>/ and /home/<user>/<project>/<app>/
+# without walking whole home directories. Anything deeper is out of reach by design —
+# the running-container pass is what catches it.
 COMPOSE_SCAN_DIRS="${COMPOSE_SCAN_DIRS:-/opt /srv /root /home}"
+COMPOSE_SCAN_DEPTH="${COMPOSE_SCAN_DEPTH:-4}"
 
 apt_install ufw
 
@@ -67,7 +71,7 @@ if ((${#existing_dirs[@]} > 0)); then
         exposed=1
       fi
     done < <(grep -A20 -E '^\s*ports:' "$cf" 2>/dev/null || true)
-  done < <(find "${existing_dirs[@]}" -maxdepth 3 -type f \
+  done < <(find "${existing_dirs[@]}" -maxdepth "$COMPOSE_SCAN_DEPTH" -type f \
     \( -name 'docker-compose.y*ml' -o -name 'compose.y*ml' \) 2>/dev/null || true)
 fi
 
