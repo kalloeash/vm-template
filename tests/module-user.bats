@@ -1,4 +1,8 @@
 #!/usr/bin/env bats
+# The crypt(3) hash fixtures below are single-quoted on purpose — `$6$` is the algorithm
+# marker, not a variable (SC2016 off).
+# shellcheck disable=SC2016
+#
 # 20-user — the privilege model. Every case here is a decision the module makes before
 # it writes anything, so DRY_RUN=1 exercises all of it. See tickets/003.
 
