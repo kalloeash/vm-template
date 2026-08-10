@@ -32,11 +32,14 @@ plan for the modules the [assessment](../docs/ASSESSMENT.md) specifies.
 | [012](012-crowdsec-evaluation.md) | Evaluate CrowdSec vs fail2ban | draft | 006 |
 | [013](013-cloud-init-delivery.md) | cloud-init first-boot delivery path | ready | 001–009 |
 | [014](014-packer-golden-image.md) | Packer golden-image roadmap | draft | 013 |
+| [015](015-ssh-host-key-hygiene.md) | `30-ssh`: host-key + moduli hygiene (split out of 004) | ready | 004 |
 
 **Tier-3 acceptance (2026-08-09):** all base modules verified on a real Ubuntu 24.04
 Hetzner VM — every control green, ssh-audit clean, idempotent, lockout drill passed,
 Lynis index 78 (see [docs/lynis-baseline.md](../docs/lynis-baseline.md)). Still open:
-the bats unit suite (010), CI (011), and the cloud-init end-to-end verification (013).
+the bats unit suite (010), CI (011), the cloud-init end-to-end verification (013), and
+host-key hygiene (015). arm64 was validated in QEMU only — physical Raspberry Pi
+acceptance is still owed.
 
 Legend: `draft` = needs a decision before an agent starts · `ready` = agent-pickable ·
 `in-progress` · `done`.

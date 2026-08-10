@@ -38,6 +38,11 @@ maintainer with a note — never silently skipped.
 
 Base modules (00–90) implemented and verified on a real Ubuntu 24.04 VM as of
 2026-08-09: all state checks pass, `ssh-audit` clean, idempotent, Lynis hardening index
-78 (see [docs/lynis-baseline.md](docs/lynis-baseline.md)). arm64 (incl. Raspberry Pi 4B)
-paths validated. Open: bats unit suite (010), CI (011), cloud-init end-to-end (013).
+78 (see [docs/lynis-baseline.md](docs/lynis-baseline.md)). arm64 paths validated in QEMU;
+physical Raspberry Pi acceptance still pending. Open: bats unit suite (010), CI (011),
+cloud-init end-to-end (013), SSH host-key hygiene (015).
 A PR must not drop the Lynis index below the recorded baseline.
+
+Claims in the docs must describe what the code does today. When a spec line describes
+work that is not implemented, either implement it or move it to a ticket and say so —
+do not leave the two out of step.

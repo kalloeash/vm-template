@@ -14,10 +14,16 @@ only when its config file changed or the unit is down, and `install_file` export
 ## 00-preflight
 - Assert: running as root (or sudo), supported distro (`/etc/os-release` ID in
   ubuntu/debian/kali), apt available, systemd running.
-- **Lockout guard**: record whether the current SSH session is key-authenticated and
-  whether the target admin user has a non-empty `authorized_keys`. Modules that would
-  cut password access refuse to proceed unless one of those is true (override:
+- **Lockout guard**: check whether `root` or the target admin user has an
+  `authorized_keys` file containing at least one recognized key type. Modules that would
+  cut password access refuse to proceed unless that holds (override:
   `FORCE_LOCKOUT_OK=1`).
+  - What this proves: key-based access is *possible* for one of those accounts.
+  - What it does not prove: that the session running `make harden` is itself
+    key-authenticated, or that the key on disk is one you hold. The guard reads the file;
+    it does not inspect the current connection. An operator on a password session with a
+    stale key in `authorized_keys` can still lock themselves out — the drill in
+    [TESTING.md](TESTING.md) exists for that reason.
 
 ## 10-update
 - `apt-get update` + `dist-upgrade -y` (with dpkg options to keep local config files).
@@ -51,7 +57,11 @@ only when its config file changed or the unit is down, and `install_file` export
   optional `AllowUsers ${ADMIN_USER}` (`SSH_ALLOW_USERS=1`).
 - Modern algorithms (curve25519/aes-gcm/chacha20/ed25519 family) — the exact set is
   whatever current `ssh-audit` passes clean on the target OpenSSH version.
-- Regenerate weak host keys if present (drop small-moduli, keep ed25519 + rsa-4096).
+- **Host keys**: the drop-in pins `HostKey` to the ed25519 and RSA keys, so sshd stops
+  offering the ecdsa (nistp256) key that `ssh-audit` flags. That is a change in what the
+  daemon *offers*; the module does not generate, rotate or delete any key material, and
+  it does not touch `/etc/ssh/moduli`. Regenerating weak host keys and pruning small
+  moduli are open work — [ticket 015](../tickets/015-ssh-host-key-hygiene.md).
 - `sshd -t` gate before reload; **lockout guard consulted before applying**.
 - The drop-in is installed transactionally: the previous version is kept, `sshd -t`
   validates the effective config (the include chain, not the fragment alone), and a
