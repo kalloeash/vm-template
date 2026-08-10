@@ -45,8 +45,9 @@ sudo make harden ADMIN_USER=$(whoami)
 
 # The admin account is key-only by default, so sudo is configured NOPASSWD — a locked
 # password plus a password prompt would leave no way to reach root. For a password-based
-# admin instead (sudo then asks for it):
-#   sudo make harden ADMIN_USER=ops ADMIN_PASSWORD_HASH="$(openssl passwd -6)"
+# admin instead (sudo then asks for it), pass the hash in the ENVIRONMENT — make expands
+# `$` in command-line variables and would mangle a $6$... hash:
+#   sudo ADMIN_PASSWORD_HASH="$(openssl passwd -6)" make harden ADMIN_USER=ops
 
 # Optional: install the audit tools so `make audit` reports a Lynis index + ssh-audit
 sudo apt install -y lynis ssh-audit

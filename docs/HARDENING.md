@@ -42,6 +42,11 @@ only when its config file changed or the unit is down, and `install_file` export
     nothing to type at the `sudo` prompt.
   - **password**: set `ADMIN_PASSWORD_HASH` to a crypt(3) hash (`openssl passwd -6`);
     the password is applied with `chpasswd -e` and `sudo` asks for it.
+    **Pass it in the environment, not as a make variable** — make expands `$` in
+    command-line variables, so `make user ADMIN_PASSWORD_HASH='$6$salt$…'` arrives
+    mangled and is rejected. Use `sudo ADMIN_PASSWORD_HASH="$(openssl passwd -6)" make
+    user`, or `ADMIN_PASSWORD_HASH_FILE=/path/to/hash`, which also keeps the hash out of
+    the process list and shell history.
 - `SUDO_NOPASSWD` still overrides the default, but the combination "no usable password
   and `SUDO_NOPASSWD=0`" is rejected with a fatal error rather than shipped: after
   30-ssh disables root login it leaves no path to root.

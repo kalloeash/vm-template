@@ -105,9 +105,19 @@ if [[ ${EXTENDED:-0} == 1 ]]; then
   fi
   echo "  firewall opens SSH only: ok"
 
-  # tickets/003 — the password model: a hash means a real password and no NOPASSWD file
-  ssh_admin "cd /opt/vm-template && sudo -n make user ADMIN_USER=ops \
-    ADMIN_PASSWORD_HASH=\"\$(openssl passwd -6 -salt vmtsalt vmt-test-pw)\"" >/dev/null
+  # tickets/003 — the password model: a hash means a real password and no NOPASSWD file.
+  # The hash goes through the environment: make expands $ in command-line variables.
+  ssh_admin "cd /opt/vm-template && sudo -n env \
+    ADMIN_PASSWORD_HASH=\"\$(openssl passwd -6 -salt vmtsalt vmt-test-pw)\" \
+    make user ADMIN_USER=ops" >/dev/null
+
+  # ...and the make-variable form must fail loudly rather than half-work
+  if ssh_admin "cd /opt/vm-template && sudo -n make user ADMIN_USER=ops3 \
+    ADMIN_PASSWORD_HASH='\$6\$vmtsalt\$notarealhash'" >/dev/null 2>&1; then
+    echo "FAIL: a make-mangled ADMIN_PASSWORD_HASH was accepted"
+    exit 1
+  fi
+  echo "  make-variable password hash rejected with an explanation: ok"
   if ssh_admin "sudo -n test -f /etc/sudoers.d/90-vmt-ops"; then
     echo "FAIL: a password-model account was given a NOPASSWD drop-in"
     exit 1
