@@ -68,6 +68,12 @@ only when its config file changed or the unit is down, and `install_file` export
   `docker-compose.yml` found under `/opt` publishes only on `127.0.0.1` (warn
   otherwise). Optional `UFW_DOCKER=1` installs the chaifeng/ufw-docker DOCKER-USER
   chain wiring for hosts that must publish container ports.
+- `ufw-docker` is fetched from a **pinned commit** and verified against a recorded
+  sha256 before it is executed; a mismatch aborts the module. Tracking `master` would
+  mean running whatever upstream pushed most recently, as root, on a host being
+  hardened. `UFW_DOCKER_REF` / `UFW_DOCKER_SHA256` override the pin, and both must be
+  bumped together. A binary already on disk is re-fetched when it does not match the
+  pin, so the host converges on the reviewed revision.
 
 ## 50-fail2ban
 - Install; deploy `jail.d/sshd.local` (maxretry 3 / findtime 600 / bantime 3600,
