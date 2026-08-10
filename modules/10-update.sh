@@ -11,13 +11,13 @@ export DEBIAN_FRONTEND=noninteractive
 # --- apt update + upgrade (keep local config files on conflict) --------------
 # Ask apt what it would do before doing it: on a converged host there is nothing to
 # upgrade, and reporting CHANGED anyway is what made "second run is all OK" untrue.
-# `apt-get -s` prints one `Inst ` line per package it would touch, in any locale.
+# `apt-get -s` prints one `Inst `/`Remv ` line per package it would touch, in any locale.
 apt_upgrade_opts=(-o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef)
 if [[ $DRY_RUN == 1 ]]; then
   log_changed "apt update + dist-upgrade (dry-run)"
 else
   apt-get update -qq
-  pending="$(apt-get -s "${apt_upgrade_opts[@]}" dist-upgrade 2>/dev/null | grep -c '^Inst ' || true)"
+  pending="$(apt-get -s "${apt_upgrade_opts[@]}" dist-upgrade 2>/dev/null | grep -cE '^(Inst|Remv) ' || true)"
   if ((pending == 0)); then
     log_ok "no pending package upgrades"
   else

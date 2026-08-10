@@ -52,8 +52,10 @@ if [[ $DRY_RUN != 1 ]] && ! is_wsl; then
   # Loading the rules is only a change when the rule file changed or the kernel has
   # none loaded; `augenrules --load` on every run reported a change that had not
   # happened.
+  # `auditctl -l` prints "No rules" (not nothing) when the kernel has none, so match
+  # actual rule lines instead of any output.
   loaded=0
-  auditctl -l 2>/dev/null | grep -q . && loaded=1
+  auditctl -l 2>/dev/null | grep -qE '^-' && loaded=1
   if [[ $rules_changed == 1 || $loaded == 0 ]]; then
     augenrules --load >/dev/null 2>&1 || log_warn "augenrules load failed"
     log_changed "auditd rules loaded"
