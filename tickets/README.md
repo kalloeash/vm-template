@@ -30,15 +30,13 @@ plan for the modules the [assessment](../docs/ASSESSMENT.md) specifies.
 | [010](010-test-harness.md) | Hetzner acceptance runner + bats unit suite | done | 001 |
 | [011](011-ci-github-actions.md) | CI: lint + pre-commit + bats + DRY_RUN harden on PR | done | 010 |
 | [012](012-crowdsec-evaluation.md) | Evaluate CrowdSec vs fail2ban | draft | 006 |
-| [013](013-cloud-init-delivery.md) | cloud-init first-boot delivery path | ready | 001–009 |
+| [013](013-cloud-init-delivery.md) | cloud-init first-boot delivery path | done | 001–009 |
 | [014](014-packer-golden-image.md) | Packer golden-image roadmap | draft | 013 |
 | [015](015-ssh-host-key-hygiene.md) | `30-ssh`: host-key + moduli hygiene | done | 004 |
 
 **Tier-3 acceptance (2026-08-09):** all base modules verified on a real Ubuntu 24.04
 Hetzner VM — every control green, ssh-audit clean, idempotent, lockout drill passed,
-Lynis index 78 (see [docs/lynis-baseline.md](../docs/lynis-baseline.md)). Still open: the
-cloud-init end-to-end verification (013). arm64 was validated
-in QEMU only — physical Raspberry Pi acceptance is still owed.
+Lynis index 78 (see [docs/lynis-baseline.md](../docs/lynis-baseline.md)).
 
 **Tier-3 re-run (2026-08-10):** the remediation series was re-verified on throwaway
 Hetzner VMs — ubuntu-24.04 four times and debian-13 twice, `EXTENDED=1` on the last of
@@ -48,9 +46,15 @@ deferred — the audit gate exits 1 on a broken control (009.5), a drop-in sshd 
 rolled back off disk (004.6), both privilege models behave (003.3, 003.5), `EXTRA_PORTS`
 defaults to SSH-only (005.1), and `TIER=full` loads its ruleset.
 
-**Still owed:** arm64 on real hardware. Hetzner ARM (cax11) was out of stock in all six
-datacenters at test time, so the arm64 claim still rests on QEMU — as does physical
-Raspberry Pi acceptance, including the USB-root detection in 65-hardening.
+**arm64 (2026-08-10):** the baseline is applied for real on aarch64 by CI
+([`.github/workflows/ci.yml`](../.github/workflows/ci.yml), `ubuntu-24.04-arm` runners) —
+harden, an idempotent second run, `make audit` passing, and `make audit` failing on a
+broken control. Hetzner ARM (cax11–cax41) was `resource_unavailable` in all three
+locations that offer it, so the one arm64 gap left is the SSH lockout drill, which needs
+a VM reachable from outside.
+
+**Still owed:** physical Raspberry Pi acceptance, including the USB-root detection in
+65-hardening, which reads `/sys/block` and cannot be exercised anywhere else.
 
 Legend: `draft` = needs a decision before an agent starts · `ready` = agent-pickable ·
 `in-progress` · `done`.

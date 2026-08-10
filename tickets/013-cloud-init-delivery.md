@@ -43,3 +43,20 @@ is the recommended path for a new single VPS.
 
 - [ ] Acceptance criteria pass · no-TTY safe · STYLE.md clean
 - [ ] DELIVERY.md path B verified end-to-end and marked tested
+
+## Outcome (2026-08-10) — done
+
+Verified end to end by [`scripts/test-cloud-init.sh`](../scripts/test-cloud-init.sh) on a
+throwaway ubuntu-24.04 VM: cloud-init reports `status: done`, the harden log ends in
+`RESULT: PASS`, `make audit` passes, root SSH is refused and the admin can still reach
+root — all before anyone logged in.
+
+Running it found three defects in the shipped `examples/cloud-init.yaml`, all now fixed:
+
+1. `sudo: "ALL=(ALL) ALL"` on an account cloud-init creates **without a password** — the
+   same dead end ticket 003 fixed in the module, still present in the example.
+2. `git clone` of a repo that is private, with no credential path.
+3. `make` and `git` were never installed; a minimal cloud image has neither.
+
+The example keeps the `git clone` form because that is right for a public repo, and now
+says what to do instead for a private one.

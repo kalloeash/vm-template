@@ -6,17 +6,29 @@
 # disabled on the first boot, before the machine is reachable for its real purpose, then
 # the modules run the rest of the baseline.
 #
+# Verified end to end on a real VM by scripts/test-cloud-init.sh: after first boot the
+# box passes `make audit`, refuses root SSH, and the admin can still reach root.
+#
 # NEVER put secrets (tokens, DB passwords) in user-data — the instance metadata service
 # exposes it. Application secrets are generated on the box, after harden, out of band.
 
 package_update: true
 package_upgrade: true
 
+# Neither is on a minimal cloud image, and runcmd below needs both.
+packages:
+  - git
+  - make
+
 users:
   - name: admin
     groups: [sudo]
     shell: /bin/bash
-    sudo: "ALL=(ALL) ALL"
+    # NOPASSWD is not laziness here: cloud-init creates this account with no password at
+    # all. Pairing a locked password with a sudo password prompt leaves the admin able to
+    # log in and unable to do anything — see docs/HARDENING.md §20-user. For a
+    # password-based admin, set `passwd:` to a crypt(3) hash instead and drop NOPASSWD.
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
     ssh_authorized_keys:
       - ssh-ed25519 AAAA...replace-with-your-public-key... you@host
 
@@ -24,6 +36,10 @@ users:
 ssh_pwauth: false
 
 runcmd:
+  # A private repo needs a deploy key or a token, and user-data is world-readable via the
+  # metadata service — so for a private repo, ship the tree instead of cloning it
+  # (write_files with a base64 tarball; scripts/test-cloud-init.sh does exactly that).
   - [git, clone, "https://github.com/kalloeash/vm-template.git", /opt/vm-template]
   # FORCE_LOCKOUT_OK is safe here: cloud-init already provisioned the admin key above.
-  - [bash, -lc, "cd /opt/vm-template && make harden ADMIN_USER=admin FORCE_LOCKOUT_OK=1 EXTRA_PORTS='80/tcp 443/tcp'"]
+  # Drop EXTRA_PORTS unless this host really serves HTTP — the default is SSH only.
+  - [bash, -lc, "cd /opt/vm-template && make harden ADMIN_USER=admin FORCE_LOCKOUT_OK=1 EXTRA_PORTS='80/tcp 443/tcp' >/var/log/vmt-harden.log 2>&1"]
