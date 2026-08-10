@@ -92,6 +92,78 @@ echo "  idempotent: ok"
 echo "--- audit ---"
 ssh_admin "cd /opt/vm-template && sudo -n make audit"
 
+# EXTENDED=1 adds the acceptance criteria that need a real host and a deliberate break:
+# the audit gate, the sshd rollback, the two privilege models, TIER=full. They run before
+# the lockout drill because that drill ends with this client banned.
+if [[ ${EXTENDED:-0} == 1 ]]; then
+  echo "--- extended drills ---"
+
+  # tickets/005 — EXTRA_PORTS defaults to empty, so only SSH should be open
+  if ssh_admin "sudo -n ufw status | grep -qE '^(80|443)/tcp'"; then
+    echo "FAIL: 80/443 are open without EXTRA_PORTS being asked for"
+    exit 1
+  fi
+  echo "  firewall opens SSH only: ok"
+
+  # tickets/003 — the password model: a hash means a real password and no NOPASSWD file
+  ssh_admin "cd /opt/vm-template && sudo -n make user ADMIN_USER=ops \
+    ADMIN_PASSWORD_HASH=\"\$(openssl passwd -6 -salt vmtsalt vmt-test-pw)\"" >/dev/null
+  if ssh_admin "sudo -n test -f /etc/sudoers.d/90-vmt-ops"; then
+    echo "FAIL: a password-model account was given a NOPASSWD drop-in"
+    exit 1
+  fi
+  if ! ssh_admin "sudo -n passwd -S ops | awk '{print \$2}'" | grep -qx P; then
+    echo "FAIL: ADMIN_PASSWORD_HASH did not produce a usable password"
+    exit 1
+  fi
+  echo "  password model (ADMIN_PASSWORD_HASH): ok"
+
+  # tickets/003 — the combination that used to ship a host with no path to root
+  if ssh_admin "cd /opt/vm-template && sudo -n make user ADMIN_USER=ops2 SUDO_NOPASSWD=0" >/dev/null 2>&1; then
+    echo "FAIL: SUDO_NOPASSWD=0 on a password-less account was accepted"
+    exit 1
+  fi
+  echo "  password-less account with SUDO_NOPASSWD=0 refused: ok"
+
+  # tickets/004 criterion 6 — a drop-in sshd rejects must not survive on disk.
+  # A second drop-in makes the *effective* config invalid, so the module's own file is
+  # written and then has to be rolled back.
+  ssh_admin "sudo -n bash -c 'echo NotADirective yes > /etc/ssh/sshd_config.d/99-vmt-bogus.conf; rm -f /etc/ssh/sshd_config.d/10-hardening.conf'"
+  if ssh_admin "cd /opt/vm-template && sudo -n make ssh" >/dev/null 2>&1; then
+    echo "FAIL: make ssh succeeded against a config sshd rejects"
+    exit 1
+  fi
+  if ssh_admin "sudo -n test -f /etc/ssh/sshd_config.d/10-hardening.conf"; then
+    echo "FAIL: the rejected drop-in was left on disk"
+    exit 1
+  fi
+  echo "  sshd rollback removed the rejected drop-in: ok"
+  ssh_admin "sudo -n rm -f /etc/ssh/sshd_config.d/99-vmt-bogus.conf"
+  ssh_admin "cd /opt/vm-template && sudo -n make ssh" >/dev/null
+  if ! ssh_admin "sudo -n sshd -T | grep -qx 'passwordauthentication no'"; then
+    echo "FAIL: the hardened sshd config did not come back"
+    exit 1
+  fi
+  echo "  sshd config restored after the rollback: ok"
+
+  # tickets/009 criterion 5 — make audit has to fail on a broken mandatory control
+  ssh_admin "sudo -n ufw disable" >/dev/null
+  if ssh_admin "cd /opt/vm-template && sudo -n make audit" >/dev/null 2>&1; then
+    echo "FAIL: make audit passed with ufw disabled"
+    exit 1
+  fi
+  echo "  make audit fails on a broken control: ok"
+  ssh_admin "sudo -n ufw --force enable" >/dev/null
+
+  # tickets/009 — the optional tier actually loads its rules
+  ssh_admin "cd /opt/vm-template && sudo -n make harden TIER=full ADMIN_USER=admin SUDO_NOPASSWD=1 FORCE_LOCKOUT_OK=1" >/dev/null
+  if ! ssh_admin "sudo -n auditctl -l | grep -q identity"; then
+    echo "FAIL: TIER=full did not load the auditd ruleset"
+    exit 1
+  fi
+  echo "  TIER=full auditd rules loaded: ok"
+fi
+
 echo "--- lockout drill ---"
 # Order matters. The negative checks deliberately fail authentication, which is exactly
 # what fail2ban bans for, and the ban drops this client's packets on port 22 — including
