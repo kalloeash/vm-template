@@ -118,8 +118,14 @@ Pi-specific points, and how they are handled:
 - **cloud-init** on the Pi image reads `user-data`/`network-config` from the boot FAT
   partition, not a cloud datasource → delivery path A (post-boot `make harden`) is the
   reliable route on a Pi; path B needs the boot-partition variant.
+- **USB storage** is ordinary on a Pi and blocked by default in 65-hardening (USB-1000).
+  Worse, a Pi booting from a USB SSD would not survive it — the modprobe rule reaches the
+  initramfs. `BLOCK_USB_STORAGE=auto` (the default) detects a USB-rooted filesystem and
+  skips the block; `BLOCK_USB_STORAGE=0` turns it off outright on a board that mounts USB
+  disks for other reasons.
 - Not yet run on physical Pi hardware — the kernel-specific behavior (which exact sysctl
-  keys the linux-raspi kernel omits) can only be confirmed on a real board.
+  keys the linux-raspi kernel omits, and whether the USB-root detection fires correctly on
+  a USB-booted board) can only be confirmed on a real board.
 
 ## 6. Test strategy (summary — full detail in TESTING.md)
 

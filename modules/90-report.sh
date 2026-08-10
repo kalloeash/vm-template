@@ -67,7 +67,10 @@ check "fail2ban sshd jail" bash -c "for _ in 1 2 3 4 5; do fail2ban-client statu
 check "unattended-upgrades enabled" systemctl is-enabled unattended-upgrades
 check "journald persistent" bash -c "grep -qE '^Storage=persistent' /etc/systemd/journald.conf"
 check "core dumps disabled" bash -c "grep -qE '^\*\s+hard\s+core\s+0' /etc/security/limits.d/99-vmt-coredump.conf"
-check "kernel module blacklist installed" bash -c "grep -qE '^install usb-storage' /etc/modprobe.d/99-vmt-blacklist.conf"
+# usb-storage is deliberately absent on hosts that boot from USB (65-hardening), so the
+# mandatory assertion is the rare-protocol set; usb-storage is reported separately.
+check "kernel module blacklist installed" bash -c "grep -qE '^install dccp' /etc/modprobe.d/99-vmt-blacklist.conf"
+note "usb-storage blocked" bash -c "grep -qE '^install usb-storage' /etc/modprobe.d/99-vmt-blacklist.conf"
 check "login.defs UMASK 027" bash -c "grep -qE '^UMASK[[:space:]]+027' /etc/login.defs"
 
 # The admin must be able to reach root once root SSH login is gone: either a usable
