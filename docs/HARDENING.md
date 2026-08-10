@@ -63,10 +63,20 @@ only when its config file changed or the unit is down, and `install_file` export
 - Modern algorithms (curve25519/aes-gcm/chacha20/ed25519 family) — the exact set is
   whatever current `ssh-audit` passes clean on the target OpenSSH version.
 - **Host keys**: the drop-in pins `HostKey` to the ed25519 and RSA keys, so sshd stops
-  offering the ecdsa (nistp256) key that `ssh-audit` flags. That is a change in what the
-  daemon *offers*; the module does not generate, rotate or delete any key material, and
-  it does not touch `/etc/ssh/moduli`. Regenerating weak host keys and pruning small
-  moduli are open work — [ticket 015](../tickets/015-ssh-host-key-hygiene.md).
+  offering the ecdsa (nistp256) key that `ssh-audit` flags.
+- **Moduli**: `/etc/ssh/moduli` is pruned of Diffie-Hellman groups below
+  `SSH_MIN_MODULUS` (default 3071 bits) — the Logjam exposure, and negotiable no matter
+  what the drop-in says. If nothing would survive the filter the file is left alone and
+  a warning is printed: an empty moduli file breaks
+  `diffie-hellman-group-exchange-*` outright, which is worse than the weak group.
+  `make audit` asserts the floor afterwards.
+- **Host-key strength**: an RSA host key below 3072 bits is reported. Replacing it is
+  opt-in (`SSH_REGEN_HOST_KEYS=1`) and never automatic — rotation changes the
+  fingerprint, so every client that has connected before gets a host-key mismatch. On a
+  baseline applied to hosts already in service that is an outage, not a hardening step.
+- **ecdsa key material is left in place** on purpose. The drop-in stops sshd offering
+  it, and deleting the files buys nothing durable: `ssh-keygen -A` regenerates missing
+  host keys the next time the service starts.
 - `sshd -t` gate before reload; **lockout guard consulted before applying**.
 - The drop-in is installed transactionally: the previous version is kept, `sshd -t`
   validates the effective config (the include chain, not the fragment alone), and a
