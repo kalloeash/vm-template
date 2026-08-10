@@ -26,8 +26,11 @@ EXTRA_KEYS="${HCLOUD_EXTRA_KEYS:-}"
 KEYFILE="${SSH_KEY_FILE:-$HOME/.ssh/id_ed25519}"
 REPO="${VMT_REPO:-.}"
 
+ctl="$(mktemp -u)" # ssh ControlMaster socket, opened during the lockout drill
+
 # Delete on every exit path, then confirm it is gone — a leaked server bills by the hour.
 cleanup() {
+  ssh -S "$ctl" -O exit "admin@${ip:-none}" >/dev/null 2>&1 || true
   echo "--- destroying $NAME ---"
   hcloud server delete "$NAME" >/dev/null 2>&1 || true
   if hcloud server describe "$NAME" >/dev/null 2>&1; then
@@ -93,12 +96,26 @@ echo "--- audit ---"
 ssh_admin "cd /opt/vm-template && sudo -n make audit"
 
 echo "--- lockout drill ---"
+# The negative checks below deliberately fail authentication, which is precisely what
+# fail2ban bans for — after them this client cannot open a new connection. So: open one
+# multiplexed admin connection first and run the positive checks over it. An established
+# connection survives the ban; a new one would not.
+ssh "${sshopt[@]}" -M -S "$ctl" -o ControlPersist=600 -fN "admin@$ip"
+# shellcheck disable=SC2029
+admin_ctl() { ssh -S "$ctl" "admin@$ip" "$@"; }
+
+if ! admin_ctl "sudo -n true && echo admin-sudo-ok" | grep -q admin-sudo-ok; then
+  echo "FAIL: admin SSH + sudo does not work — the account cannot reach root"
+  exit 1
+fi
+echo "  admin SSH + sudo: ok"
+
 if ssh_root true 2>/dev/null; then
   echo "FAIL: root SSH still allowed"
   exit 1
 fi
 echo "  root SSH refused: ok"
-ssh_admin "sudo -n true && echo admin-sudo-ok" | grep -q admin-sudo-ok && echo "  admin SSH + sudo: ok"
+
 if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   -o PreferredAuthentications=password -o PubkeyAuthentication=no \
   -o ConnectTimeout=10 "admin@$ip" true 2>/dev/null; then
@@ -106,5 +123,16 @@ if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   exit 1
 fi
 echo "  password auth refused: ok"
+
+# The refusals above should have registered with fail2ban. This asserts the wiring that
+# silently breaks on 24.04/Debian 13: sshd logs to the journal, so a jail left on the
+# default `auto` backend reads nothing and never bans, while still looking healthy.
+failed="$(admin_ctl "sudo -n fail2ban-client status sshd" | awk '/Total failed/{print $NF}')"
+if [[ ${failed:-0} -gt 0 ]]; then
+  echo "  fail2ban observed $failed failed attempt(s): ok"
+else
+  echo "FAIL: fail2ban recorded no failures — the sshd jail is not reading the journal"
+  exit 1
+fi
 
 echo "=== tier-3 acceptance PASSED on $IMAGE ==="
