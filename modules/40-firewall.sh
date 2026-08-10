@@ -7,7 +7,10 @@ require_root
 require_distro ubuntu debian kali
 
 SSH_PORT="${SSH_PORT:-22}"
-EXTRA_PORTS="${EXTRA_PORTS:-80/tcp 443/tcp}"
+# Only SSH is opened by default. 80/443 came from the web server this baseline grew out
+# of; a generic hardened VM should not decide that the host serves HTTP. Web hosts pass
+# EXTRA_PORTS="80/tcp 443/tcp" themselves.
+EXTRA_PORTS="${EXTRA_PORTS:-}"
 UFW_DOCKER="${UFW_DOCKER:-0}"
 # ufw-docker is fetched from GitHub and run as root, so it is pinned to a tagged commit
 # and checksum-verified. `master` is a moving target: whatever upstream pushed most
@@ -15,6 +18,9 @@ UFW_DOCKER="${UFW_DOCKER:-0}"
 # ref and the hash together, after reading the diff.
 UFW_DOCKER_REF="${UFW_DOCKER_REF:-78366b6afe6e566cd53f7e55341889c2e3c863e7}" # tag 251123
 UFW_DOCKER_SHA256="${UFW_DOCKER_SHA256:-c3e5f0bf6061a3a2e7d7ac06abc80665707d2f4c91e90d76f22e4168863fb472}"
+# Where to look for compose files declaring a publish. The runtime check below is the
+# one that catches everything actually running; this only reads intent from disk.
+COMPOSE_SCAN_DIRS="${COMPOSE_SCAN_DIRS:-/opt /srv /root /home}"
 
 apt_install ufw
 
@@ -25,7 +31,7 @@ ufw_do default deny incoming
 ufw_do default allow outgoing
 ufw_do allow "${SSH_PORT}/tcp"
 for p in $EXTRA_PORTS; do ufw_do allow "$p"; done
-log_ok "ufw rules declared (ssh:${SSH_PORT}, extra: ${EXTRA_PORTS})"
+log_ok "ufw rules declared (ssh:${SSH_PORT}, extra: ${EXTRA_PORTS:-none})"
 
 if [[ $DRY_RUN != 1 ]]; then
   if is_wsl; then
@@ -37,18 +43,42 @@ if [[ $DRY_RUN != 1 ]]; then
 fi
 
 # --- Docker/ufw bypass: containers published on 0.0.0.0 skip ufw entirely ----
-# Warn on any compose port that is not loopback-bound. See DELIVERY/HARDENING notes.
-shopt -s nullglob
-for cf in /opt/*/docker-compose.y*ml /opt/*/*/docker-compose.y*ml; do
+# Docker's DNAT rules live in the FORWARD/DOCKER chains, which ufw's INPUT policy never
+# sees. This module detects the exposure; it does not close it unless UFW_DOCKER=1.
+# Two passes, because neither is sufficient alone:
+#   1. compose files under COMPOSE_SCAN_DIRS — intent, readable before anything runs
+#   2. containers publishing right now — catches `docker run -p`, compose files outside
+#      the scanned paths, and anything started by hand
+exposed=0
+
+scan_dirs=()
+read -r -a scan_dirs <<<"$COMPOSE_SCAN_DIRS"
+existing_dirs=()
+for d in "${scan_dirs[@]}"; do [[ -d $d ]] && existing_dirs+=("$d"); done
+
+if ((${#existing_dirs[@]} > 0)); then
+  while IFS= read -r cf; do
+    [[ -n $cf ]] || continue
+    while IFS= read -r line; do
+      # a published mapping like "8080:8080" or "0.0.0.0:8080:8080" (not 127.0.0.1:)
+      if [[ $line =~ ^[[:space:]]*-[[:space:]]*\"?([0-9.]+:)?[0-9]+:[0-9]+ ]] &&
+        [[ ! $line =~ 127\.0\.0\.1: ]]; then
+        log_warn "compose $cf publishes a non-loopback port: ${line#"${line%%[![:space:]]*}"} — ufw does NOT gate this"
+        exposed=1
+      fi
+    done < <(grep -A20 -E '^\s*ports:' "$cf" 2>/dev/null || true)
+  done < <(find "${existing_dirs[@]}" -maxdepth 3 -type f \
+    \( -name 'docker-compose.y*ml' -o -name 'compose.y*ml' \) 2>/dev/null || true)
+fi
+
+if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
   while IFS= read -r line; do
-    # a published mapping like "8080:8080" or "0.0.0.0:8080:8080" (not 127.0.0.1:)
-    if [[ $line =~ ^[[:space:]]*-[[:space:]]*\"?([0-9.]+:)?[0-9]+:[0-9]+ ]] \
-      && [[ ! $line =~ 127\.0\.0\.1: ]]; then
-      log_warn "compose $cf publishes a non-loopback port: ${line#"${line%%[![:space:]]*}"} — ufw does NOT gate this"
-    fi
-  done < <(grep -A20 -E '^\s*ports:' "$cf" 2>/dev/null || true)
-done
-shopt -u nullglob
+    [[ -n $line ]] || continue
+    log_warn "running container publishes a non-loopback port: $line — ufw does NOT gate this"
+    exposed=1
+  done < <(docker ps --format '{{.Names}} {{.Ports}}' 2>/dev/null |
+    grep -E '0\.0\.0\.0:|\[::\]:' || true)
+fi
 
 if [[ $UFW_DOCKER == 1 ]]; then
   # The container IP rotates on restart, so static after.rules rot — use the tool.
@@ -78,6 +108,9 @@ if [[ $UFW_DOCKER == 1 ]]; then
     systemctl reload ufw >/dev/null 2>&1 || true
     log_changed "installed ufw-docker ${UFW_DOCKER_REF:0:12} + DOCKER-USER wiring"
   fi
+elif [[ $exposed == 1 ]]; then
+  log_warn "ufw is NOT enforcing the published container ports listed above."
+  log_warn "Bind them to 127.0.0.1, or set UFW_DOCKER=1 to wire the DOCKER-USER chain."
 else
-  log_ok "UFW_DOCKER not requested (bind container ports to 127.0.0.1 instead)"
+  log_ok "UFW_DOCKER not requested; no non-loopback container publish detected"
 fi
