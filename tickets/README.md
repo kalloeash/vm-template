@@ -27,8 +27,8 @@ plan for the modules the [assessment](../docs/ASSESSMENT.md) specifies.
 | — | `65-hardening`: login.defs, core dumps, module blacklist (added for Lynis floor) | done | 001 |
 | [008](008-module-docker.md) | `70-docker`: repo install + `daemon.json` caps | done | 001 |
 | [009](009-module-auditd-report.md) | `80-auditd` + `90-report` (Lynis/ssh-audit) | done | 001–008 |
-| [010](010-test-harness.md) | Hetzner acceptance runner done; bats suite still open | in-progress | 001 |
-| [011](011-ci-github-actions.md) | CI: pre-commit + lint-language + bats on PR | draft | 010 |
+| [010](010-test-harness.md) | Hetzner acceptance runner + bats unit suite | done | 001 |
+| [011](011-ci-github-actions.md) | CI: lint + pre-commit + bats + DRY_RUN harden on PR | done | 010 |
 | [012](012-crowdsec-evaluation.md) | Evaluate CrowdSec vs fail2ban | draft | 006 |
 | [013](013-cloud-init-delivery.md) | cloud-init first-boot delivery path | ready | 001–009 |
 | [014](014-packer-golden-image.md) | Packer golden-image roadmap | draft | 013 |
@@ -36,10 +36,14 @@ plan for the modules the [assessment](../docs/ASSESSMENT.md) specifies.
 
 **Tier-3 acceptance (2026-08-09):** all base modules verified on a real Ubuntu 24.04
 Hetzner VM — every control green, ssh-audit clean, idempotent, lockout drill passed,
-Lynis index 78 (see [docs/lynis-baseline.md](../docs/lynis-baseline.md)). Still open:
-the bats unit suite (010), CI (011), the cloud-init end-to-end verification (013), and
-host-key hygiene (015). arm64 was validated in QEMU only — physical Raspberry Pi
-acceptance is still owed.
+Lynis index 78 (see [docs/lynis-baseline.md](../docs/lynis-baseline.md)). Still open: the
+cloud-init end-to-end verification (013) and host-key hygiene (015). arm64 was validated
+in QEMU only — physical Raspberry Pi acceptance is still owed.
+
+**Tier-3 re-run owed.** The remediation series that followed the external review changed
+behavior in 20-user, 30-ssh, 40-firewall, 65-hardening, 90-report and `lib/common.sh`.
+The bats suite and CI cover the decision logic; the real-VM criteria in tickets 003–005
+and 009 have not been re-run since.
 
 Legend: `draft` = needs a decision before an agent starts · `ready` = agent-pickable ·
 `in-progress` · `done`.

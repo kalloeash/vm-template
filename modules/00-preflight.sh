@@ -26,8 +26,8 @@ has_keys() {
 if [[ "${FORCE_LOCKOUT_OK:-0}" == 1 ]]; then
   log_warn "lockout guard overridden by FORCE_LOCKOUT_OK=1"
   touch "$guard_file"
-elif has_keys "/home/$ADMIN_USER/.ssh/authorized_keys" 2>/dev/null \
-  || has_keys /root/.ssh/authorized_keys 2>/dev/null; then
+elif has_keys "/home/$ADMIN_USER/.ssh/authorized_keys" 2>/dev/null ||
+  has_keys /root/.ssh/authorized_keys 2>/dev/null; then
   log_ok "lockout guard: key-based access verified"
   touch "$guard_file"
 else

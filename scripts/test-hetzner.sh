@@ -20,7 +20,10 @@ SSH_KEY="${HCLOUD_SSH_KEY:?set HCLOUD_SSH_KEY to the name from 'hcloud ssh-key l
 KEYFILE="${SSH_KEY_FILE:-$HOME/.ssh/id_ed25519}"
 REPO="${VMT_REPO:-.}"
 
-cleanup() { echo "--- destroying $NAME ---"; hcloud server delete "$NAME" >/dev/null 2>&1 || true; }
+cleanup() {
+  echo "--- destroying $NAME ---"
+  hcloud server delete "$NAME" >/dev/null 2>&1 || true
+}
 trap cleanup EXIT
 
 sshopt=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10 -i "$KEYFILE")
@@ -37,8 +40,14 @@ ip="$(hcloud server ip "$NAME")"
 echo "ip: $ip"
 
 echo "--- waiting for sshd ---"
-for _ in $(seq 1 40); do ssh_root true 2>/dev/null && break; sleep 5; done
-ssh_root true 2>/dev/null || { echo "FAIL: no ssh"; exit 1; }
+for _ in $(seq 1 40); do
+  ssh_root true 2>/dev/null && break
+  sleep 5
+done
+ssh_root true 2>/dev/null || {
+  echo "FAIL: no ssh"
+  exit 1
+}
 
 echo "--- copying repo + installing make ---"
 if [[ -d $REPO ]]; then
@@ -60,7 +69,8 @@ ssh_root "cd /opt/vm-template && $HARDEN"
 
 echo "--- idempotence (run 2, as admin — root SSH is now disabled) ---"
 if ssh_admin "cd /opt/vm-template && sudo -n $HARDEN" | grep -q '^CHANGED:'; then
-  echo "FAIL: second run reported CHANGES (not idempotent)"; exit 1
+  echo "FAIL: second run reported CHANGES (not idempotent)"
+  exit 1
 fi
 echo "  idempotent: ok"
 
@@ -68,13 +78,17 @@ echo "--- audit ---"
 ssh_admin "cd /opt/vm-template && sudo -n make audit"
 
 echo "--- lockout drill ---"
-if ssh_root true 2>/dev/null; then echo "FAIL: root SSH still allowed"; exit 1; fi
+if ssh_root true 2>/dev/null; then
+  echo "FAIL: root SSH still allowed"
+  exit 1
+fi
 echo "  root SSH refused: ok"
 ssh_admin "sudo -n true && echo admin-sudo-ok" | grep -q admin-sudo-ok && echo "  admin SSH + sudo: ok"
 if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-     -o PreferredAuthentications=password -o PubkeyAuthentication=no \
-     -o ConnectTimeout=10 "admin@$ip" true 2>/dev/null; then
-  echo "FAIL: password auth accepted"; exit 1
+  -o PreferredAuthentications=password -o PubkeyAuthentication=no \
+  -o ConnectTimeout=10 "admin@$ip" true 2>/dev/null; then
+  echo "FAIL: password auth accepted"
+  exit 1
 fi
 echo "  password auth refused: ok"
 

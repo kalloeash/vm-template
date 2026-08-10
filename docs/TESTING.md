@@ -5,14 +5,31 @@ Three tiers; each catches a different failure class. Cheapest runs most often.
 ## Tier 1 — static, every commit (Windows, no VM)
 
 ```bash
-pre-commit run --all-files    # shellcheck, shfmt, bash -n
+pre-commit run --all-files    # shellcheck, shfmt, bash -n, writing style
+make test                     # bats-core unit suite
 ```
 
 - **shellcheck** catches quoting, word-splitting, and unreachable-code bugs — the bulk of
   real shell defects.
 - **shfmt** keeps the modules uniformly formatted (mirrors the prettier/dotnet-format
   role in the other repos).
-- CI mirrors the same hooks (a common `pr.yml` precommit pattern).
+- **bats** (`tests/`) covers the decisions a module makes before it writes anything: the
+  privilege model in 20-user, the port defaults and Docker-bypass detection in
+  40-firewall, the SSH lockout refusal, and every helper in `lib/common.sh`.
+- CI mirrors all of it — [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs
+  lint, pre-commit, the bats suite, and a full `make harden DRY_RUN=1` on every PR.
+
+### How the module tests run without a VM
+
+Modules call `require_root`, and `EUID` cannot be faked. The suite runs them under
+`unshare -r` — a user namespace where `EUID` is 0 with no real privilege — together with
+`DRY_RUN=1`, so every write goes through `install_file` and does nothing. External
+commands that would otherwise make a test depend on the runner (`docker`, `ufw`, `dpkg`)
+are stubbed on `PATH`. Tests that need the namespace skip themselves where it is
+unavailable rather than failing.
+
+This covers decisions, not effects. Anything that has to actually happen — sshd
+reloading, ufw filtering, a rollback surviving a restart — stays tier 3.
 
 ## Tier 2 — WSL smoke test (minutes, free, local)
 

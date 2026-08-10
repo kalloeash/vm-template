@@ -11,8 +11,8 @@ persistence, Docker log caps, kernel/sysctl, and more).
 78 (see [docs/lynis-baseline.md](docs/lynis-baseline.md)). arm64 paths validated in a
 QEMU arm64 container (package availability, arch detection, Docker repo); **physical
 Raspberry Pi acceptance is still pending** — which sysctl keys the `linux-raspi` kernel
-omits can only be confirmed on a real board. A bats unit suite and CI are the other main
-open items. Start here:
+omits can only be confirmed on a real board. A bats unit suite and CI run on every PR
+(`make test`). Start here:
 
 - [docs/ASSESSMENT.md](docs/ASSESSMENT.md) — gap analysis, decisions, mistakes found in
   the manual process, research sources
@@ -84,7 +84,8 @@ vm-template/
 │   └── 90-report.sh      # summary + Lynis hardening index
 ├── lib/common.sh         # log helpers, changed/ok tracking, os-release detection
 ├── scripts/lint-language.sh # STYLE.md enforcement (no AI attribution / AI-tell words)
-├── tests/                   # bats-core suite (ticket 010)
+├── tests/                   # bats-core suite: make test
+├── .github/workflows/ci.yml # lint + pre-commit + bats + DRY_RUN harden on every PR
 ├── tickets/                 # file-based backlog, one unit of work per file
 ├── docs/
 │   ├── ASSESSMENT.md     # gap analysis, decisions, mistakes found, research sources

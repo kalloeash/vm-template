@@ -76,8 +76,8 @@ EOF
 
 # --- time sync ---------------------------------------------------------------
 if [[ $DRY_RUN != 1 ]] && ! is_wsl; then
-  if systemctl is-active --quiet systemd-timesyncd 2>/dev/null \
-    || systemctl is-active --quiet chrony 2>/dev/null; then
+  if systemctl is-active --quiet systemd-timesyncd 2>/dev/null ||
+    systemctl is-active --quiet chrony 2>/dev/null; then
     log_ok "time sync active"
   elif systemctl enable --now systemd-timesyncd >/dev/null 2>&1; then
     log_changed "enabled systemd-timesyncd"

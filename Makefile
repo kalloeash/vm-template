@@ -5,6 +5,7 @@
 #         make audit           verify only, changes nothing; exits 1 on any
 #                              mandatory control that is not in the expected state
 #         make lint            shellcheck + shfmt (workstation)
+#         make test            bats unit suite (workstation)
 # Knobs:  ADMIN_USER=admin  DRY_RUN=1  TIER=base|full
 #         EXTRA_PORTS="80/tcp 443/tcp"   ufw opens only SSH unless you pass this
 
@@ -17,7 +18,7 @@ export TIER   # reaches the module environment so 80-auditd can self-gate
 # exits; TIER=full additionally installs auditd + the rule set.
 MODULES := 10-update 20-user 30-ssh 40-firewall 50-fail2ban 60-sysctl 65-hardening 70-docker 80-auditd
 
-.PHONY: harden audit lint preflight report \
+.PHONY: harden audit lint test preflight report \
         update user ssh firewall fail2ban sysctl hardening docker auditd
 
 harden: preflight
@@ -47,4 +48,9 @@ auditd: preflight ;    @bash $(MODULES_DIR)/80-auditd.sh
 # workstation-side
 lint:
 	shellcheck $(MODULES_DIR)/*.sh lib/*.sh
-	shfmt -d -i 2 -ci $(MODULES_DIR) lib
+	shfmt -d -i 2 -ci $(MODULES_DIR) lib scripts
+
+# bats-core unit suite (tier 1/2 — see docs/TESTING.md). Needs bats and, for the
+# module tests, a kernel that allows unshare -r; those tests skip themselves otherwise.
+test:
+	bats tests/

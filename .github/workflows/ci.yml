@@ -1,0 +1,69 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+env:
+  # Pinned like every other third-party binary this repo executes (see 40-firewall).
+  SHFMT_VERSION: v3.10.0
+  SHFMT_SHA256: 1f57a384d59542f8fac5f503da1f3ea44242f46dff969569e80b524d64b71dbc
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+
+      - name: Install shfmt (pinned + verified)
+        run: |
+          curl -fsSL -o /tmp/shfmt \
+            "https://github.com/mvdan/sh/releases/download/${SHFMT_VERSION}/shfmt_${SHFMT_VERSION}_linux_amd64"
+          echo "${SHFMT_SHA256}  /tmp/shfmt" | sha256sum -c -
+          sudo install -m 0755 /tmp/shfmt /usr/local/bin/shfmt
+
+      - name: make lint
+        run: make lint
+
+      - name: Writing style (docs/STYLE.md)
+        run: |
+          mapfile -t files < <(git ls-files '*.md' '*.sh' '*.yaml' '*.yml' Makefile)
+          scripts/lint-language.sh "${files[@]}"
+
+  pre-commit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pre-commit
+      - run: pre-commit run --all-files --show-diff-on-failure
+
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bats
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq bats
+
+      - name: bats tests/
+        run: bats tests/
+
+  dry-run:
+    # A DRY_RUN pass over every module: proves each one is at least reachable end to end
+    # on a stock image. It is not an acceptance test — that is tier 3 (docs/TESTING.md).
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: make harden DRY_RUN=1
+        run: sudo make harden DRY_RUN=1 FORCE_LOCKOUT_OK=1 ADMIN_USER=ciadmin
