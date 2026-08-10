@@ -121,6 +121,14 @@ only when its config file changed or the unit is down, and `install_file` export
     `fs.suid_dumpable=0` in 60-sysctl.
   - **kernel-module blacklist**: rare network protocols dccp/sctp/rds/tipc
     (NETW-3200) and usb-storage (USB-1000), via `install … /bin/true`.
+  - **usb-storage is conditional** (`BLOCK_USB_STORAGE`, default `auto`). The rule lands
+    in the initramfs, so blocking it on a host whose root filesystem is on a USB disk
+    means the next boot cannot find its root — a real risk on a Raspberry Pi booting from
+    a USB SSD, which the arm64 support otherwise invites. `auto` checks whether `/`
+    resolves through a USB controller (`/sys/block/<disk>` device path) and skips the
+    block with a warning if so. `1` blocks regardless, `0` never blocks.
+    `make audit` treats the rare-protocol entries as mandatory and reports usb-storage as
+    informational, so a legitimately USB-booted host still passes.
 - Packages installed in 10-update on the same audit advice: `libpam-tmpdir`,
   `debsums`, `apt-show-versions`.
 
