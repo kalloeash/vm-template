@@ -68,6 +68,11 @@ echo "--- state checks ---"
 check "password SSH disabled" bash -c "sshd -T 2>/dev/null | grep -qx 'passwordauthentication no'"
 check "root SSH disabled" bash -c "sshd -T 2>/dev/null | grep -qx 'permitrootlogin no'"
 check "no ecdsa host key offered" bash -c "sshd -T 2>/dev/null | grep -q '^hostkey ' && ! sshd -T 2>/dev/null | grep -q '^hostkey .*ecdsa'"
+# Logjam: a 2048-bit group in /etc/ssh/moduli is negotiable regardless of the drop-in.
+check "ssh moduli >= ${SSH_MIN_MODULUS:-3071} bits" bash -c \
+  "[[ ! -f /etc/ssh/moduli ]] || [[ \$(awk -v m=${SSH_MIN_MODULUS:-3071} '!/^#/ && NF >= 5 && \$5 < m' /etc/ssh/moduli | wc -l) -eq 0 ]]"
+check "rsa host key >= 3072 bits" bash -c \
+  "[[ ! -f /etc/ssh/ssh_host_rsa_key ]] || [[ \$(ssh-keygen -lf /etc/ssh/ssh_host_rsa_key 2>/dev/null | awk '{print \$1}') -ge 3072 ]]"
 check "ufw active" bash -c "ufw status 2>/dev/null | grep -qi '^Status: active'"
 # fail2ban needs a moment to bring the jail up after a restart earlier in the run.
 check "fail2ban sshd jail" bash -c "for _ in 1 2 3 4 5; do fail2ban-client status sshd >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1"
