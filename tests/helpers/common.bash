@@ -91,7 +91,10 @@ SH
 
 stub_calls() { cat "$STUB_BIN/$1.calls" 2>/dev/null || true; }
 
-# assert_line_matches <regex> — the module output is in $output (bats).
+# $output and $status are set by bats' `run`, not by this file (SC2154 off).
+# shellcheck disable=SC2154
+#
+# assert_output_matches <regex> — matches against the output of the last `run`.
 assert_output_matches() {
   if ! grep -qE "$1" <<<"$output"; then
     printf 'expected output to match: %s\n--- actual ---\n%s\n' "$1" "$output" >&2
