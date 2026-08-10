@@ -45,6 +45,46 @@ ssh_root() { ssh "${sshopt[@]}" "root@$ip" "$@"; }
 # shellcheck disable=SC2029
 ssh_admin() { ssh "${sshopt[@]}" "admin@$ip" "$@"; }
 
+# --- capacity: ask, do not hammer --------------------------------------------
+# Hetzner publishes which server types each datacenter can actually place right now, so
+# a single read answers "is there capacity" without touching the create endpoint. That
+# matters: retrying creates in a loop burns the 3600 requests/hour budget and gets the
+# token 429'd, which is a self-inflicted outage, not a test.
+capacity_available() { # capacity_available <server-type> <location>
+  local want dc ids
+  want="$(hcloud server-type describe "$1" -o format='{{.ID}}' 2>/dev/null)"
+  [[ -n $want ]] || return 1
+  for dc in $(hcloud datacenter list -o noheader -o columns=name 2>/dev/null); do
+    [[ $dc == "$2"-* ]] || continue
+    ids="$(hcloud datacenter describe "$dc" -o format='{{range .ServerTypes.Available}}{{.ID}} {{end}}' 2>/dev/null)"
+    if grep -qw "$want" <<<"$ids"; then return 0; fi
+  done
+  return 1
+}
+
+# Optional: wait for capacity by polling availability (one read a minute), rather than
+# by retrying creates. 0 = do not wait.
+waited=0
+while ! capacity_available "$TYPE" "$LOCATION"; do
+  if ((waited >= ${HCLOUD_WAIT_CAPACITY:-0})); then
+    echo "FAIL: Hetzner reports no capacity for $TYPE in $LOCATION right now."
+    echo "      This is stock, not a transient error — retrying creates will not help."
+    echo "      What is placeable there:"
+    # The Available entries carry IDs, not names, so map them through server-type list.
+    names="$(hcloud server-type list -o noheader -o columns=id,name 2>/dev/null)"
+    for dc in $(hcloud datacenter list -o noheader -o columns=name 2>/dev/null); do
+      [[ $dc == "$LOCATION"-* ]] || continue
+      avail_ids="$(hcloud datacenter describe "$dc" -o format='{{range .ServerTypes.Available}}{{.ID}} {{end}}' 2>/dev/null)"
+      echo "        $dc: $(awk -v ids=" $avail_ids " '{ if (index(ids, " " $1 " ")) printf "%s ", $2 }' <<<"$names")"
+    done
+    echo "      Set HCLOUD_WAIT_CAPACITY=<minutes> to poll availability instead of giving up."
+    exit 1
+  fi
+  echo "  no capacity for $TYPE in $LOCATION; re-checking in 60s (${waited}/${HCLOUD_WAIT_CAPACITY} min)"
+  sleep 60
+  waited=$((waited + 1))
+done
+
 key_args=(--ssh-key "$SSH_KEY")
 for k in $EXTRA_KEYS; do key_args+=(--ssh-key "$k"); done
 
