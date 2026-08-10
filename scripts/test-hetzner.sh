@@ -82,9 +82,16 @@ HARDEN="make harden ADMIN_USER=admin SUDO_NOPASSWD=1 FORCE_LOCKOUT_OK=1 LYNIS_SU
 echo "--- harden (run 1, as root) ---"
 ssh_root "cd /opt/vm-template && $HARDEN"
 
+# Never pipe an ssh command straight into `grep -q`. grep exits on the first match, ssh
+# takes SIGPIPE, and `set -o pipefail` makes the pipeline non-zero *because* the pattern
+# matched — so `if cmd | grep -q X` is false whether X is there or not. Capture first.
+run_admin() { ssh_admin "$@" 2>&1 || true; }
+
 echo "--- idempotence (run 2, as admin — root SSH is now disabled) ---"
-if ssh_admin "cd /opt/vm-template && sudo -n $HARDEN" | grep -q '^CHANGED:'; then
-  echo "FAIL: second run reported CHANGES (not idempotent)"
+run2="$(run_admin "cd /opt/vm-template && sudo -n $HARDEN")"
+if grep -q '^CHANGED:' <<<"$run2"; then
+  echo "FAIL: second run reported CHANGES (not idempotent):"
+  grep '^CHANGED:' <<<"$run2"
   exit 1
 fi
 echo "  idempotent: ok"
@@ -122,7 +129,7 @@ if [[ ${EXTENDED:-0} == 1 ]]; then
     echo "FAIL: a password-model account was given a NOPASSWD drop-in"
     exit 1
   fi
-  if ! ssh_admin "sudo -n passwd -S ops | awk '{print \$2}'" | grep -qx P; then
+  if ! grep -qx P <<<"$(run_admin "sudo -n passwd -S ops | awk '{print \$2}'")"; then
     echo "FAIL: ADMIN_PASSWORD_HASH did not produce a usable password"
     exit 1
   fi
@@ -180,7 +187,7 @@ echo "--- lockout drill ---"
 # already-established connections. So every check that needs to reach the host runs
 # first, and the ones that expect a refusal run last.
 
-if ! ssh_admin "sudo -n true && echo admin-sudo-ok" | grep -q admin-sudo-ok; then
+if ! grep -q admin-sudo-ok <<<"$(run_admin "sudo -n true && echo admin-sudo-ok")"; then
   echo "FAIL: admin SSH + sudo does not work — the account cannot reach root"
   exit 1
 fi
@@ -189,7 +196,7 @@ echo "  admin SSH + sudo: ok"
 # Assert the wiring that silently breaks on 24.04 and Debian 13: sshd logs to the
 # journal, so a jail left on the default `auto` backend reads nothing and never bans
 # while still reporting itself healthy. A journal match proves backend=systemd took.
-if ssh_admin "sudo -n fail2ban-client get sshd journalmatch" | grep -q '_SYSTEMD_UNIT'; then
+if grep -q '_SYSTEMD_UNIT' <<<"$(run_admin "sudo -n fail2ban-client get sshd journalmatch")"; then
   echo "  fail2ban sshd jail reads the journal: ok"
 else
   echo "FAIL: sshd jail has no journal match — fail2ban is watching nothing"
