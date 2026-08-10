@@ -18,7 +18,9 @@ set_login_def() { # key value
   [[ -f $f ]] || return 0
   if grep -qE "^${key}\b" "$f"; then
     local cur
-    cur="$(grep -E "^${key}\b" "$f" | awk '{print $2}' | head -1)"
+    # `| head -1` would close the pipe early and SIGPIPE awk, which pipefail turns into
+    # a failed assignment and set -e turns into an aborted run. Let awk pick the first.
+    cur="$(grep -E "^${key}\b" "$f" | awk 'NR==1{print $2}')"
     if [[ $cur == "$val" ]]; then
       log_ok "login.defs $key=$val"
     elif [[ $DRY_RUN == 1 ]]; then
