@@ -14,7 +14,8 @@ non-root admin so root SSH can be disabled by ticket 004.
 - Create `ADMIN_USER` (default `admin`; reuse existing `kali` on Kali), add to `sudo`.
 - Copy `root`'s `authorized_keys` to the admin user if the admin has none; correct
   ownership/permissions (`700` dir, `600` file).
-- Keys-only (no password set). `SUDO_NOPASSWD=1` optional, default off.
+- Keys-only by default (locked password), with `NOPASSWD` sudo so the account is
+  actually usable. `ADMIN_PASSWORD_HASH` selects the password-based model instead.
 
 **Out:**
 - Disabling root login (that is ticket 004, after keys are proven).
@@ -24,8 +25,11 @@ non-root admin so root SSH can be disabled by ticket 004.
 1. `id "$ADMIN_USER"` shows membership in `sudo`.
 2. `/home/$ADMIN_USER/.ssh/authorized_keys` exists with mode `600`, owner `$ADMIN_USER`,
    and contains at least one key when root had one.
-3. Account has no usable password (`passwd -S "$ADMIN_USER"` shows `L` or `NP`).
+3. The account can reach root: either no usable password (`passwd -S` shows `L`/`NP`)
+   plus a `NOPASSWD` sudoers drop-in, or a usable password (`P`) and no drop-in.
 4. Idempotent: re-running neither duplicates keys nor errors on the existing user.
+5. `SUDO_NOPASSWD=0` on a password-less account exits non-zero instead of producing a
+   host where the admin cannot escalate.
 
 ## Test plan
 

@@ -40,6 +40,11 @@ cd vm-template
 # key when it disables root + password login (otherwise you can lock yourself out):
 sudo make harden ADMIN_USER=$(whoami)
 
+# The admin account is key-only by default, so sudo is configured NOPASSWD — a locked
+# password plus a password prompt would leave no way to reach root. For a password-based
+# admin instead (sudo then asks for it):
+#   sudo make harden ADMIN_USER=ops ADMIN_PASSWORD_HASH="$(openssl passwd -6)"
+
 # Optional: install the audit tools so `make audit` reports a Lynis index + ssh-audit
 sudo apt install -y lynis ssh-audit
 sudo make audit          # verify only — state checks, ssh-audit, Lynis index; changes nothing
