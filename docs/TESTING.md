@@ -70,6 +70,14 @@ ssh <admin>@<ip> "cd vm-template && make audit && sudo make harden"  # audit + i
 hcloud server delete vmtpl-test
 ```
 
+**Capacity.** The runner asks Hetzner which server types a location can actually place
+before it tries to create anything, and stops with the list of what *is* placeable when
+the answer is no. That check is one API read; retrying `server create` in a loop is not a
+capacity check, it just burns the 3600-requests/hour budget and gets the token 429'd.
+`HCLOUD_WAIT_CAPACITY=<minutes>` polls availability once a minute instead of giving up —
+useful for ARM (`cax*`), which is regularly out of stock in all three locations that
+offer it.
+
 `scripts/test-hetzner.sh` runs this end to end and deletes the server on every exit path.
 `EXTENDED=1` adds the criteria that need a deliberate break on a real host: the audit gate
 (disable ufw, `make audit` must exit 1), the sshd rollback (a drop-in the daemon rejects
