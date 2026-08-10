@@ -104,6 +104,23 @@ safe defaults (documented per module). Ordering = numeric prefix.
 ## 90-report
 - Print per-module status table, `lynis audit system --quick` hardening index,
   `ssh-audit localhost` summary, reboot-required flag.
+- **Exit contract**: `0` when every mandatory control is in the expected state, `1` when
+  any is not. That is what makes `make audit` a gate rather than a printout, so CI and
+  the tier-3 runner can trust it.
+  - Mandatory: SSH password/root login off, no ecdsa host key offered, ufw active,
+    fail2ban sshd jail up, unattended-upgrades enabled, journald persistent, core dumps
+    off, module blacklist installed, `login.defs UMASK`, the admin's path to root, every
+    key in `99-vmt-hardening.conf` that this kernel exposes, and `ssh-audit` finding
+    nothing at warn/fail.
+  - Informational (`[note]`, never fails): Docker present, auditd outside `TIER=full`.
+  - Skipped (`[skip]`, never fails): a sysctl key the running kernel does not expose,
+    the whole sysctl sweep under WSL, and tools that are not installed.
+  - The Lynis index is informational by default. `LYNIS_MIN=78` makes a drop below the
+    recorded baseline fail instead.
+- The sysctl sweep is derived from the file 60-sysctl writes, so the two cannot drift.
+  It exists because 60-sysctl applies with `sysctl -e`: unknown keys are ignored for
+  compatibility with non-generic kernels, which makes end-state verification the only
+  place a silently unapplied control can be caught.
 
 ## Deliberately skipped (see ASSESSMENT.md §7)
 SSH port change · egress filtering · CIS L2 · partitioning · rkhunter · SELinux ·
