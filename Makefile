@@ -2,7 +2,8 @@
 # Usage:  make harden          full baseline (base tier)
 #         make harden TIER=full   + auditd
 #         make <module>        one module (preflight always runs first)
-#         make audit           verify only, changes nothing
+#         make audit           verify only, changes nothing; exits 1 on any
+#                              mandatory control that is not in the expected state
 #         make lint            shellcheck + shfmt (workstation)
 # Knobs:  ADMIN_USER=admin  EXTRA_PORTS="80/tcp 443/tcp"  DRY_RUN=1  TIER=base|full
 
