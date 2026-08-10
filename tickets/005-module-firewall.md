@@ -19,7 +19,8 @@ and makes the Docker interaction explicit rather than incidental.
 - Detect any `docker-compose.y*ml` under `/opt` and **warn** on any `ports:` entry that
   is not bound to `127.0.0.1`.
 - Optional `UFW_DOCKER=1`: install the chaifeng/ufw-docker DOCKER-USER wiring for hosts
-  that must publish container ports through ufw.
+  that must publish container ports through ufw, from a pinned commit whose sha256 is
+  recorded in the module and verified before the script is executed.
 
 **Out:**
 - Egress filtering (`default deny outgoing`) — rejected in assessment §7.
@@ -39,6 +40,8 @@ so static rules rot. `UFW_DOCKER=1` therefore installs the tool, it does not han
    naming the file and port; a `127.0.0.1`-bound file produces none.
 4. With `UFW_DOCKER=1`, the DOCKER-USER chain contains the ufw-docker jump
    (`iptables -S DOCKER-USER` includes the managed rules).
+5. With `UFW_DOCKER=1` and `UFW_DOCKER_SHA256` set to a wrong value, the module exits
+   non-zero and `/usr/local/bin/ufw-docker` is not written or executed.
 
 ## Test plan
 
