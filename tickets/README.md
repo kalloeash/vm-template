@@ -40,10 +40,17 @@ Lynis index 78 (see [docs/lynis-baseline.md](../docs/lynis-baseline.md)). Still 
 cloud-init end-to-end verification (013) and host-key hygiene (015). arm64 was validated
 in QEMU only — physical Raspberry Pi acceptance is still owed.
 
-**Tier-3 re-run owed.** The remediation series that followed the external review changed
-behavior in 20-user, 30-ssh, 40-firewall, 65-hardening, 90-report and `lib/common.sh`.
-The bats suite and CI cover the decision logic; the real-VM criteria in tickets 003–005
-and 009 have not been re-run since.
+**Tier-3 re-run (2026-08-10):** the remediation series was re-verified on throwaway
+Hetzner VMs — ubuntu-24.04 four times and debian-13 twice, `EXTENDED=1` on the last of
+each. All green: 34/34 mandatory controls, idempotent second run, ssh-audit clean, Lynis
+78 (ubuntu) / 79 (debian), lockout drill passed, plus the criteria that were previously
+deferred — the audit gate exits 1 on a broken control (009.5), a drop-in sshd rejects is
+rolled back off disk (004.6), both privilege models behave (003.3, 003.5), `EXTRA_PORTS`
+defaults to SSH-only (005.1), and `TIER=full` loads its ruleset.
+
+**Still owed:** arm64 on real hardware. Hetzner ARM (cax11) was out of stock in all six
+datacenters at test time, so the arm64 claim still rests on QEMU — as does physical
+Raspberry Pi acceptance, including the USB-root detection in 65-hardening.
 
 Legend: `draft` = needs a decision before an agent starts · `ready` = agent-pickable ·
 `in-progress` · `done`.
