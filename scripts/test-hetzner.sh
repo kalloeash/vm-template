@@ -100,9 +100,14 @@ echo "--- lockout drill ---"
 # fail2ban bans for — after them this client cannot open a new connection. So: open one
 # multiplexed admin connection first and run the positive checks over it. An established
 # connection survives the ban; a new one would not.
-ssh "${sshopt[@]}" -M -S "$ctl" -o ControlPersist=600 -fN "admin@$ip"
+if ! ssh "${sshopt[@]}" -M -S "$ctl" -o ControlPersist=600 -fN "admin@$ip"; then
+  echo "FAIL: could not open the multiplexed admin connection"
+  exit 1
+fi
+# The same options matter on the mux client too: without them it host-key-checks against
+# the default known_hosts and fails before it ever reaches the master.
 # shellcheck disable=SC2029
-admin_ctl() { ssh -S "$ctl" "admin@$ip" "$@"; }
+admin_ctl() { ssh "${sshopt[@]}" -S "$ctl" "admin@$ip" "$@"; }
 
 if ! admin_ctl "sudo -n true && echo admin-sudo-ok" | grep -q admin-sudo-ok; then
   echo "FAIL: admin SSH + sudo does not work — the account cannot reach root"
