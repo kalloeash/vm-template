@@ -26,11 +26,8 @@ EXTRA_KEYS="${HCLOUD_EXTRA_KEYS:-}"
 KEYFILE="${SSH_KEY_FILE:-$HOME/.ssh/id_ed25519}"
 REPO="${VMT_REPO:-.}"
 
-ctl="$(mktemp -u)" # ssh ControlMaster socket, opened during the lockout drill
-
 # Delete on every exit path, then confirm it is gone — a leaked server bills by the hour.
 cleanup() {
-  ssh -S "$ctl" -O exit "admin@${ip:-none}" >/dev/null 2>&1 || true
   echo "--- destroying $NAME ---"
   hcloud server delete "$NAME" >/dev/null 2>&1 || true
   if hcloud server describe "$NAME" >/dev/null 2>&1; then
@@ -96,24 +93,26 @@ echo "--- audit ---"
 ssh_admin "cd /opt/vm-template && sudo -n make audit"
 
 echo "--- lockout drill ---"
-# The negative checks below deliberately fail authentication, which is precisely what
-# fail2ban bans for — after them this client cannot open a new connection. So: open one
-# multiplexed admin connection first and run the positive checks over it. An established
-# connection survives the ban; a new one would not.
-if ! ssh "${sshopt[@]}" -M -S "$ctl" -o ControlPersist=600 -fN "admin@$ip"; then
-  echo "FAIL: could not open the multiplexed admin connection"
-  exit 1
-fi
-# The same options matter on the mux client too: without them it host-key-checks against
-# the default known_hosts and fails before it ever reaches the master.
-# shellcheck disable=SC2029
-admin_ctl() { ssh "${sshopt[@]}" -S "$ctl" "admin@$ip" "$@"; }
+# Order matters. The negative checks deliberately fail authentication, which is exactly
+# what fail2ban bans for, and the ban drops this client's packets on port 22 — including
+# already-established connections. So every check that needs to reach the host runs
+# first, and the ones that expect a refusal run last.
 
-if ! admin_ctl "sudo -n true && echo admin-sudo-ok" | grep -q admin-sudo-ok; then
+if ! ssh_admin "sudo -n true && echo admin-sudo-ok" | grep -q admin-sudo-ok; then
   echo "FAIL: admin SSH + sudo does not work — the account cannot reach root"
   exit 1
 fi
 echo "  admin SSH + sudo: ok"
+
+# Assert the wiring that silently breaks on 24.04 and Debian 13: sshd logs to the
+# journal, so a jail left on the default `auto` backend reads nothing and never bans
+# while still reporting itself healthy. A journal match proves backend=systemd took.
+if ssh_admin "sudo -n fail2ban-client get sshd journalmatch" | grep -q '_SYSTEMD_UNIT'; then
+  echo "  fail2ban sshd jail reads the journal: ok"
+else
+  echo "FAIL: sshd jail has no journal match — fail2ban is watching nothing"
+  exit 1
+fi
 
 if ssh_root true 2>/dev/null; then
   echo "FAIL: root SSH still allowed"
@@ -128,16 +127,6 @@ if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   exit 1
 fi
 echo "  password auth refused: ok"
-
-# The refusals above should have registered with fail2ban. This asserts the wiring that
-# silently breaks on 24.04/Debian 13: sshd logs to the journal, so a jail left on the
-# default `auto` backend reads nothing and never bans, while still looking healthy.
-failed="$(admin_ctl "sudo -n fail2ban-client status sshd" | awk '/Total failed/{print $NF}')"
-if [[ ${failed:-0} -gt 0 ]]; then
-  echo "  fail2ban observed $failed failed attempt(s): ok"
-else
-  echo "FAIL: fail2ban recorded no failures — the sshd jail is not reading the journal"
-  exit 1
-fi
+echo "  (this client is now most likely banned by fail2ban — expected, the drill is over)"
 
 echo "=== tier-3 acceptance PASSED on $IMAGE ==="
