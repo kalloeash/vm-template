@@ -62,12 +62,24 @@ only when its config file changed or the unit is down, and `install_file` export
   reload, but only a real content change reports `CHANGED`.
 
 ## 40-firewall
-- ufw: `default deny incoming`, `default allow outgoing`, allow `22/tcp` +
-  `EXTRA_PORTS` (default `80/tcp 443/tcp`), enable non-interactively.
-- **Docker integration**: document the FORWARD-chain bypass; assert that any
-  `docker-compose.yml` found under `/opt` publishes only on `127.0.0.1` (warn
-  otherwise). Optional `UFW_DOCKER=1` installs the chaifeng/ufw-docker DOCKER-USER
-  chain wiring for hosts that must publish container ports.
+- ufw: `default deny incoming`, `default allow outgoing`, allow `${SSH_PORT}/tcp` +
+  `EXTRA_PORTS` (**default empty**), enable non-interactively. Only SSH is open unless
+  the caller asks for more: 80/443 belong to a web host's build sheet, not to a generic
+  hardened VM.
+- **Docker integration**: Docker's DNAT rules live in the FORWARD/DOCKER chains, which
+  ufw's INPUT policy never sees, so a container published on `0.0.0.0` is reachable
+  whatever ufw says. What this module actually does about that, stated plainly:
+  - **Detects** the exposure two ways — compose files under `COMPOSE_SCAN_DIRS`
+    (`/opt /srv /root /home`, depth 3, `docker-compose.y*ml` and `compose.y*ml`) and,
+    separately, containers publishing a non-loopback port right now (`docker ps`), which
+    is what catches `docker run -p`, files outside those paths, and anything started by
+    hand. Each finding is a `WARN:` line naming the source.
+  - **Does not enforce** anything by default. The default posture is the deployment
+    convention "bind published ports to `127.0.0.1`", plus a warning when the host does
+    not follow it. Containers started after hardening are not covered at all until the
+    module runs again.
+  - **Enforces** only with `UFW_DOCKER=1`, which installs the chaifeng/ufw-docker
+    DOCKER-USER chain wiring (pinned + checksum-verified, see below).
 - `ufw-docker` is fetched from a **pinned commit** and verified against a recorded
   sha256 before it is executed; a mismatch aborts the module. Tracking `master` would
   mean running whatever upstream pushed most recently, as root, on a host being

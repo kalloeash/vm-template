@@ -5,7 +5,8 @@
 #         make audit           verify only, changes nothing; exits 1 on any
 #                              mandatory control that is not in the expected state
 #         make lint            shellcheck + shfmt (workstation)
-# Knobs:  ADMIN_USER=admin  EXTRA_PORTS="80/tcp 443/tcp"  DRY_RUN=1  TIER=base|full
+# Knobs:  ADMIN_USER=admin  DRY_RUN=1  TIER=base|full
+#         EXTRA_PORTS="80/tcp 443/tcp"   ufw opens only SSH unless you pass this
 
 SHELL := /usr/bin/env bash
 MODULES_DIR := modules

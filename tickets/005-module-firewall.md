@@ -15,9 +15,11 @@ and makes the Docker interaction explicit rather than incidental.
 
 **In:**
 - ufw `default deny incoming`, `default allow outgoing`; allow `22/tcp` plus
-  `EXTRA_PORTS` (default `80/tcp 443/tcp`); enable non-interactively (`--force`).
-- Detect any `docker-compose.y*ml` under `/opt` and **warn** on any `ports:` entry that
-  is not bound to `127.0.0.1`.
+  `EXTRA_PORTS` (default empty — only SSH is open unless the caller asks); enable
+  non-interactively (`--force`).
+- Detect a non-loopback publish two ways and **warn** for each: compose files under
+  `COMPOSE_SCAN_DIRS` (depth 3, `docker-compose.y*ml` + `compose.y*ml`), and containers
+  publishing on `0.0.0.0`/`[::]` right now per `docker ps`.
 - Optional `UFW_DOCKER=1`: install the chaifeng/ufw-docker DOCKER-USER wiring for hosts
   that must publish container ports through ufw, from a pinned commit whose sha256 is
   recorded in the module and verified before the script is executed.
@@ -34,10 +36,13 @@ so static rules rot. `UFW_DOCKER=1` therefore installs the tool, it does not han
 ## Acceptance criteria
 
 1. After `make firewall`, `ufw status verbose` shows `Default: deny (incoming)` and the
-   expected allow rules; `ufw status | grep -c 22/tcp` ≥ 1.
+   expected allow rules; `ufw status | grep -c 22/tcp` ≥ 1. With no `EXTRA_PORTS` passed,
+   SSH is the only allow rule — 80/443 appear only when the caller asks for them.
 2. Re-running does not duplicate rules (`ufw status numbered` count stable across two runs).
-3. A compose file publishing `0.0.0.0:5432:5432` under `/opt` produces a `WARN:` line
-   naming the file and port; a `127.0.0.1`-bound file produces none.
+3. A compose file publishing `0.0.0.0:5432:5432` under any scanned directory produces a
+   `WARN:` line naming the file and port; a `127.0.0.1`-bound file produces none.
+   A container started with `docker run -p 0.0.0.0:9999:80` produces one too, with no
+   compose file anywhere on the host.
 4. With `UFW_DOCKER=1`, the DOCKER-USER chain contains the ufw-docker jump
    (`iptables -S DOCKER-USER` includes the managed rules).
 5. With `UFW_DOCKER=1` and `UFW_DOCKER_SHA256` set to a wrong value, the module exits
