@@ -45,7 +45,14 @@ safe defaults (documented per module). Ordering = numeric prefix.
 - Modern algorithms (curve25519/aes-gcm/chacha20/ed25519 family) — the exact set is
   whatever current `ssh-audit` passes clean on the target OpenSSH version.
 - Regenerate weak host keys if present (drop small-moduli, keep ed25519 + rsa-4096).
-- `sshd -t` gate before restart; **lockout guard consulted before applying**.
+- `sshd -t` gate before reload; **lockout guard consulted before applying**.
+- The drop-in is installed transactionally: the previous version is kept, `sshd -t`
+  validates the effective config (the include chain, not the fragment alone), and a
+  rejected drop-in is restored or removed before the module exits non-zero. A config the
+  daemon refuses must never stay on disk — the running sshd survives, but the next
+  reboot or `systemctl restart ssh` would not.
+- Reload runs on every invocation so the daemon converges after an earlier failed
+  reload, but only a real content change reports `CHANGED`.
 
 ## 40-firewall
 - ufw: `default deny incoming`, `default allow outgoing`, allow `22/tcp` +

@@ -23,6 +23,8 @@ operator out — so the preflight guard from ticket 001 is a hard precondition.
   OpenSSH version.
 - `sshd -t` validation before reloading; reload (not restart) to avoid dropping the
   current session.
+- Transactional install: a drop-in `sshd -t` rejects is restored/removed before the
+  module exits, so a rejected config never survives to the next reboot.
 
 **Out:**
 - SSH port change (rejected in assessment §7).
@@ -38,7 +40,11 @@ operator out — so the preflight guard from ticket 001 is a hard precondition.
    modifying `sshd_config.d/` (assert: file absent after a guard-failed run).
 4. A key-authenticated admin session survives the reload; a password login attempt is
    refused (`ssh -o PreferredAuthentications=password` → `Permission denied`).
-5. Second run prints `OK` for every step; no file rewrite when content matches.
+5. Second run prints `OK` for every step; no file rewrite when content matches, and no
+   `CHANGED: sshd reloaded` line when the config did not change.
+6. Given a drop-in `sshd -t` rejects (inject a bogus directive), the module exits
+   non-zero and `sshd -t` passes afterwards — the rejected content is gone from
+   `/etc/ssh/sshd_config.d/`.
 
 ## Test plan
 
