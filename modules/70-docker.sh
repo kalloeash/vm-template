@@ -34,9 +34,10 @@ else
     >/etc/apt/sources.list.d/docker.list
   apt-get update -qq
   apt_install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-  systemctl enable --now docker >/dev/null 2>&1 || true
   log_changed "docker engine installed"
 fi
+
+is_wsl || ensure_service_enabled docker
 
 # --- daemon.json: cap logs (the classic disk-fill outage), harden defaults ---
 # Merge with any existing file rather than clobbering it.
@@ -47,8 +48,11 @@ desired='{
   "live-restore": true,
   "no-new-privileges": true
 }'
+# The candidate goes to a temp file first: piping into install_file would run it in a
+# subshell, and VMT_FILE_CHANGED (which decides the restart below) would be lost.
+candidate="$(mktemp)"
 if [[ -f $daemon ]] && command -v python3 >/dev/null; then
-  merged="$(python3 - "$daemon" <<PY
+  python3 - "$daemon" >"$candidate" <<PY
 import json,sys
 cur=json.load(open(sys.argv[1]))
 cur.setdefault("log-driver","json-file")
@@ -56,14 +60,22 @@ cur.setdefault("log-opts",{}).update({"max-size":"10m","max-file":"3"})
 cur["live-restore"]=True; cur["no-new-privileges"]=True
 print(json.dumps(cur,indent=2))
 PY
-)"
-  printf '%s\n' "$merged" | install_file "$daemon" -
 else
-  printf '%s\n' "$desired" | install_file "$daemon" -
+  printf '%s\n' "$desired" >"$candidate"
 fi
+install_file "$daemon" "$candidate"
+daemon_changed=$VMT_FILE_CHANGED
+rm -f "$candidate"
 
-if [[ $DRY_RUN != 1 ]] && ! is_wsl && systemctl is-active --quiet docker 2>/dev/null; then
-  systemctl restart docker >/dev/null 2>&1 || log_warn "docker restart failed"
+# Restart only when daemon.json changed. An unconditional restart bounced every
+# container on every run and reported a change that had not happened.
+if [[ $daemon_changed == 1 && $DRY_RUN != 1 ]] && ! is_wsl &&
+  systemctl is-active --quiet docker 2>/dev/null; then
+  if systemctl restart docker >/dev/null 2>&1; then
+    log_changed "docker restarted (daemon.json changed)"
+  else
+    log_warn "docker restart failed — daemon.json is on disk but not live"
+  fi
 fi
 
 # --- docker group membership is root-equivalent: opt-in only -----------------
