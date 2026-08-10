@@ -1,9 +1,0 @@
-name: arm-probe
-on:
-  push:
-    branches: [test/arm64-verification]
-jobs:
-  probe:
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - run: uname -m && nproc && cat /etc/os-release | head -2

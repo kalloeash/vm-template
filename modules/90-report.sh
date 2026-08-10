@@ -143,7 +143,14 @@ else
 fi
 
 echo "--- ssh-audit ---"
-if command -v ssh-audit >/dev/null; then
+# ssh-audit at -l warn prints nothing for a clean server — and also nothing when it could
+# not connect at all. Establish that sshd is actually listening first, or "clean" would
+# mean "no ssh daemon", which is not the same thing.
+sshd_port="$(sshd -T 2>/dev/null | awk '/^port /{print $2; exit}')"
+sshd_port="${sshd_port:-22}"
+if ! timeout 5 bash -c ": >/dev/tcp/127.0.0.1/$sshd_port" 2>/dev/null; then
+  fail "sshd is not listening on 127.0.0.1:$sshd_port"
+elif command -v ssh-audit >/dev/null; then
   audit_out="$(ssh-audit -n -l warn 127.0.0.1 2>/dev/null || true)"
   hits="$(printf '%s\n' "$audit_out" | grep -iE '\[fail\]|\[warn\]' || true)"
   if [[ -n $hits ]]; then

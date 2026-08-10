@@ -61,9 +61,60 @@ jobs:
 
   dry-run:
     # A DRY_RUN pass over every module: proves each one is at least reachable end to end
-    # on a stock image. It is not an acceptance test — that is tier 3 (docs/TESTING.md).
+    # on a stock image, and it is fast enough to fail the PR before the real runs start.
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: make harden DRY_RUN=1
         run: sudo make harden DRY_RUN=1 FORCE_LOCKOUT_OK=1 ADMIN_USER=ciadmin
+
+  harden:
+    # The real thing, on both architectures: apply the baseline, prove the second run
+    # changes nothing, then let `make audit` grade it. This is what covers arm64 —
+    # GitHub's arm64 runners are real aarch64 hardware, where Hetzner's ARM capacity has
+    # been unavailable. It is not a replacement for tier 3: a CI runner cannot be
+    # rebooted or SSH'd into from outside, so the lockout drill stays on a real VM.
+    needs: [dry-run]
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Environment
+        run: |
+          uname -m
+          . /etc/os-release && echo "$PRETTY_NAME"
+
+      - name: Install sshd and the audit tools
+        # sshd has to be running for the SSH module and ssh-audit to mean anything.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq openssh-server lynis ssh-audit
+          sudo systemctl enable --now ssh
+
+      - name: harden (run 1)
+        run: sudo make harden ADMIN_USER=ciadmin FORCE_LOCKOUT_OK=1
+
+      - name: idempotence — a second run must report no changes
+        run: |
+          sudo make harden ADMIN_USER=ciadmin FORCE_LOCKOUT_OK=1 | tee /tmp/run2.log
+          if grep -q '^CHANGED:' /tmp/run2.log; then
+            echo "::error::second run reported changes"
+            grep '^CHANGED:' /tmp/run2.log
+            exit 1
+          fi
+
+      - name: audit must pass
+        run: sudo make audit ADMIN_USER=ciadmin
+
+      - name: audit must fail when a mandatory control is broken
+        run: |
+          sudo ufw disable
+          if sudo make audit ADMIN_USER=ciadmin; then
+            echo "::error::make audit passed with ufw disabled"
+            exit 1
+          fi
+          sudo ufw --force enable
