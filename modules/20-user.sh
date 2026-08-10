@@ -90,7 +90,11 @@ EOF
     rm -f "$sudoers"
     die "generated $sudoers failed visudo -c — removed it rather than leaving it in place"
   fi
-  log_ok "sudo without password for $ADMIN_USER (account has no password to type)"
+  if [[ $has_password == 1 ]]; then
+    log_ok "sudo without password for $ADMIN_USER (SUDO_NOPASSWD=1, overriding the password model)"
+  else
+    log_ok "sudo without password for $ADMIN_USER (key-only account, nothing to type)"
+  fi
 elif [[ -f $sudoers ]]; then
   run "remove NOPASSWD drop-in $sudoers" rm -f "$sudoers"
 else
