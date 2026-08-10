@@ -4,6 +4,13 @@ Every module: idempotent, standalone, prints one `CHANGED:`/`OK:` line per step,
 non-zero on failure, supports `DRY_RUN=1`. Config knobs are environment variables with
 safe defaults (documented per module). Ordering = numeric prefix.
 
+**What the two words mean.** `CHANGED:` = this run altered system state. `OK:` = the
+state was already correct. A second `make harden` printing only `OK` is the idempotence
+check, which only holds if a module never reports a change it did not make. In practice:
+package upgrades are simulated with `apt-get -s` before running, a service is restarted
+only when its config file changed or the unit is down, and `install_file` exports
+`VMT_FILE_CHANGED` so callers can make that decision.
+
 ## 00-preflight
 - Assert: running as root (or sudo), supported distro (`/etc/os-release` ID in
   ubuntu/debian/kali), apt available, systemd running.

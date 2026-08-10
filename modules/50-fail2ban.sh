@@ -30,18 +30,29 @@ bantime.factor    = 24
 bantime.maxtime   = 5w
 EOF
 
+jail_changed=$VMT_FILE_CHANGED
+
 if [[ $DRY_RUN == 1 ]]; then
   log_ok "fail2ban enable + start (dry-run)"
 elif is_wsl && [[ ! -d /run/systemd/system ]]; then
   log_warn "WSL without systemd: skipping fail2ban start"
 else
-  systemctl enable fail2ban >/dev/null 2>&1 || true
-  # config-test before (re)start so a bad jail fails loudly, not silently
-  if fail2ban-client -t >/tmp/vmt-f2b.err 2>&1; then
-    systemctl restart fail2ban
-    log_changed "fail2ban restarted with sshd jail"
-  else
+  systemctl is-enabled --quiet fail2ban 2>/dev/null || systemctl enable fail2ban >/dev/null 2>&1 || true
+  # config-test on every run so a jail broken by something else still fails loudly
+  if ! fail2ban-client -t >/tmp/vmt-f2b.err 2>&1; then
     cat /tmp/vmt-f2b.err >&2
     die "fail2ban config test failed"
+  fi
+  # Restart only when there is a reason to: a changed jail, or a dead service.
+  # Restarting every run reported a change that had not happened and dropped the
+  # in-memory ban list each time.
+  if [[ $jail_changed == 1 ]]; then
+    systemctl restart fail2ban
+    log_changed "fail2ban restarted (jail config changed)"
+  elif ! systemctl is-active --quiet fail2ban 2>/dev/null; then
+    systemctl start fail2ban
+    log_changed "fail2ban started"
+  else
+    log_ok "fail2ban running with the sshd jail"
   fi
 fi

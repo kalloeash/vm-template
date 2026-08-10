@@ -45,10 +45,21 @@ install_file /etc/audit/rules.d/99-vmt.rules - <<'EOF'
 -a always,exit -F arch=b64 -F euid=0 -S execve -k root-exec
 EOF
 
+rules_changed=$VMT_FILE_CHANGED
+
 if [[ $DRY_RUN != 1 ]] && ! is_wsl; then
-  systemctl enable --now auditd >/dev/null 2>&1 || true
-  augenrules --load >/dev/null 2>&1 || log_warn "augenrules load failed"
-  log_changed "auditd rules loaded"
+  ensure_service_enabled auditd
+  # Loading the rules is only a change when the rule file changed or the kernel has
+  # none loaded; `augenrules --load` on every run reported a change that had not
+  # happened.
+  loaded=0
+  auditctl -l 2>/dev/null | grep -q . && loaded=1
+  if [[ $rules_changed == 1 || $loaded == 0 ]]; then
+    augenrules --load >/dev/null 2>&1 || log_warn "augenrules load failed"
+    log_changed "auditd rules loaded"
+  else
+    log_ok "auditd rules already loaded"
+  fi
 else
   log_ok "auditd rule load skipped (dry-run/WSL)"
 fi

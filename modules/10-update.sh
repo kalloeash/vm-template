@@ -9,13 +9,21 @@ require_distro ubuntu debian kali
 export DEBIAN_FRONTEND=noninteractive
 
 # --- apt update + upgrade (keep local config files on conflict) --------------
-if [[ $DRY_RUN != 1 ]]; then
-  apt-get update -qq
-  apt-get -y -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef \
-    dist-upgrade >/dev/null
-  log_changed "apt dist-upgrade applied"
-else
+# Ask apt what it would do before doing it: on a converged host there is nothing to
+# upgrade, and reporting CHANGED anyway is what made "second run is all OK" untrue.
+# `apt-get -s` prints one `Inst ` line per package it would touch, in any locale.
+apt_upgrade_opts=(-o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef)
+if [[ $DRY_RUN == 1 ]]; then
   log_changed "apt update + dist-upgrade (dry-run)"
+else
+  apt-get update -qq
+  pending="$(apt-get -s "${apt_upgrade_opts[@]}" dist-upgrade 2>/dev/null | grep -c '^Inst ' || true)"
+  if ((pending == 0)); then
+    log_ok "no pending package upgrades"
+  else
+    apt-get -y "${apt_upgrade_opts[@]}" dist-upgrade >/dev/null
+    log_changed "apt dist-upgrade applied ($pending package(s))"
+  fi
 fi
 
 apt_install unattended-upgrades needrestart
@@ -57,10 +65,8 @@ APT::Periodic::Update-Package-Lists "1";
 APT::Periodic::Unattended-Upgrade "1";
 EOF
 
-if [[ $DRY_RUN != 1 ]]; then
-  systemctl enable --now unattended-upgrades >/dev/null 2>&1 || log_warn "unattended-upgrades not enabled (no systemd unit?)"
-fi
-log_ok "unattended-upgrades configured (reboot=$reboot_flag)"
+ensure_service_enabled unattended-upgrades
+log_ok "unattended-upgrades policy in place (reboot=$reboot_flag)"
 
 # --- needrestart: restart daemons automatically after library upgrades -------
 install_file /etc/needrestart/conf.d/vmt.conf - <<'EOF'
