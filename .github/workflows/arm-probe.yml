@@ -1,7 +1,9 @@
 name: arm-probe
-on: workflow_dispatch
+on:
+  push:
+    branches: [test/arm64-verification]
 jobs:
   probe:
     runs-on: ubuntu-24.04-arm
     steps:
-      - run: uname -m && lscpu | head -5
+      - run: uname -m && nproc && cat /etc/os-release | head -2
