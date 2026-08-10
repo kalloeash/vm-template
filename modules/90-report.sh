@@ -146,7 +146,9 @@ echo "--- ssh-audit ---"
 # ssh-audit at -l warn prints nothing for a clean server — and also nothing when it could
 # not connect at all. Establish that sshd is actually listening first, or "clean" would
 # mean "no ssh daemon", which is not the same thing.
-sshd_port="$(sshd -T 2>/dev/null | awk '/^port /{print $2; exit}')"
+# No early `exit` in the awk: under `set -o pipefail` an awk that stops reading sends
+# SIGPIPE to sshd -T, the pipeline returns 141, and the whole report aborts.
+sshd_port="$(sshd -T 2>/dev/null | awk '/^port /{p=$2} END{print p}')"
 sshd_port="${sshd_port:-22}"
 if ! timeout 5 bash -c ": >/dev/tcp/127.0.0.1/$sshd_port" 2>/dev/null; then
   fail "sshd is not listening on 127.0.0.1:$sshd_port"

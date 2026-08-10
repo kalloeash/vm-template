@@ -42,19 +42,28 @@ is_wsl || ensure_service_enabled docker
 # --- daemon.json: cap logs (the classic disk-fill outage), harden defaults ---
 # Merge with any existing file rather than clobbering it.
 daemon=/etc/docker/daemon.json
+# Byte-identical to what the python branch below emits (json.dumps indent=2, same key
+# order). They used to differ, so run 1 wrote this form, run 2 merged and reformatted,
+# and the module reported a change and bounced Docker on every second run.
 desired='{
   "log-driver": "json-file",
-  "log-opts": { "max-size": "10m", "max-file": "3" },
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  },
   "live-restore": true,
   "no-new-privileges": true
 }'
 # The candidate goes to a temp file first: piping into install_file would run it in a
 # subshell, and VMT_FILE_CHANGED (which decides the restart below) would be lost.
 candidate="$(mktemp)"
-if [[ -f $daemon ]] && command -v python3 >/dev/null; then
+if command -v python3 >/dev/null; then
+  # Always through the same formatter, whether or not a file exists yet — otherwise the
+  # first run and every later one disagree about whitespace and never settle.
   python3 - "$daemon" >"$candidate" <<PY
-import json,sys
-cur=json.load(open(sys.argv[1]))
+import json,os,sys
+p=sys.argv[1]
+cur=json.load(open(p)) if os.path.exists(p) else {}
 cur.setdefault("log-driver","json-file")
 cur.setdefault("log-opts",{}).update({"max-size":"10m","max-file":"3"})
 cur["live-restore"]=True; cur["no-new-privileges"]=True

@@ -36,13 +36,35 @@ fs.protected_regular = 2
 fs.suid_dumpable = 0
 EOF
 
+conf=/etc/sysctl.d/99-vmt-hardening.conf
+conf_changed=$VMT_FILE_CHANGED
+
+# Read the live value of every key this file sets, so a change can be reported only when
+# one actually moved. Keys the kernel does not expose read as empty, consistently.
+live_values() {
+  local key
+  while read -r key _; do
+    [[ -n $key && $key != \#* ]] || continue
+    printf '%s=%s\n' "$key" "$(sysctl -n "$key" 2>/dev/null || true)"
+  done < <(grep -E '^[a-z]' "$conf")
+}
+
 if [[ $DRY_RUN == 1 ]]; then
   log_ok "sysctl --system (dry-run)"
 elif is_wsl; then
   log_warn "WSL shares the host kernel — wrote the file but skipping 'sysctl --system'"
 else
+  # Apply on every run so the kernel converges after a reboot or an outside change, but
+  # report CHANGED only when the file changed or a value actually moved. Reporting a
+  # change unconditionally is what made "a second run is all OK" untrue.
+  before="$(live_values)"
   # -e: ignore unknown keys instead of aborting. The Raspberry Pi kernel
   # (linux-raspi) and other non-generic kernels may not expose every key.
   sysctl -e --system >/dev/null
-  log_changed "sysctl values applied (unknown keys ignored)"
+  after="$(live_values)"
+  if [[ $conf_changed == 1 || $before != "$after" ]]; then
+    log_changed "sysctl values applied (unknown keys ignored)"
+  else
+    log_ok "sysctl values already applied"
+  fi
 fi
