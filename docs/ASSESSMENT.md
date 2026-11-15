@@ -123,6 +123,10 @@ Pi-specific points, and how they are handled:
   initramfs. `BLOCK_USB_STORAGE=auto` (the default) detects a USB-rooted filesystem and
   skips the block; `BLOCK_USB_STORAGE=0` turns it off outright on a board that mounts USB
   disks for other reasons.
+- **Raspberry Pi OS kiosk profile** (ticket 016, [RASPBERRY-PI.md](RASPBERRY-PI.md)):
+  module skipping, the Raspberry Pi archive origin for unattended-upgrades, a package
+  hold list, volatile journald, and fail2ban/ssh source allow-lists. Raspberry Pi OS
+  has not been run either.
 - Not yet run on physical Pi hardware — the kernel-specific behavior (which exact sysctl
   keys the linux-raspi kernel omits, and whether the USB-root detection fires correctly on
   a USB-booted board) can only be confirmed on a real board.

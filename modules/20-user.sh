@@ -5,6 +5,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 require_root
 require_distro ubuntu debian kali
+skip_if_requested user
 
 ADMIN_USER="${ADMIN_USER:-admin}"
 # crypt(3) hash, e.g. `openssl passwd -6` or `mkpasswd -m sha512crypt`.

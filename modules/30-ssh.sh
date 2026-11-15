@@ -5,6 +5,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 require_root
 require_distro ubuntu debian kali
+skip_if_requested ssh
 
 ADMIN_USER="${ADMIN_USER:-admin}"
 SSH_ALLOW_USERS="${SSH_ALLOW_USERS:-0}"

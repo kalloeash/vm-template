@@ -11,6 +11,23 @@ package upgrades are simulated with `apt-get -s` before running, a service is re
 only when its config file changed or the unit is down, and `install_file` exports
 `VMT_FILE_CHANGED` so callers can make that decision.
 
+## Optional knobs (ticket 016)
+
+Every knob below defaults to today's behaviour. A bad value fails in `00-preflight`
+before any module has changed anything, and again in the module that reads it, so a
+single `make <module>` is checked too. The Raspberry Pi bundle is in
+[RASPBERRY-PI.md](RASPBERRY-PI.md).
+
+- **`SKIP_MODULES`** — space-separated short names (`update user ssh firewall fail2ban
+  sysctl hardening docker auditd`). A skipped module prints `OK: <name> skipped
+  (SKIP_MODULES)` and does nothing, under `make harden` and under `make <module>`.
+  `make audit` reads the same variable and reports the skipped module's controls as
+  `[skip] <control> (module <name> skipped: SKIP_MODULES)`. Skips never fail the audit,
+  and the end line counts them. Unknown names fail preflight and the audit. Pass the
+  same value to `make audit` as to `make harden`. Skipping a module is the caller taking
+  that control out of scope: skipping `ssh` or `firewall` leaves the host without them.
+  `80-auditd` also owns journald, so skipping it skips the journald setting too.
+
 ## 00-preflight
 - Assert: running as root (or sudo), supported distro (`/etc/os-release` ID in
   ubuntu/debian/kali), apt available, systemd running.
@@ -30,6 +47,20 @@ only when its config file changed or the unit is down, and `install_file` export
 - Install + enable `unattended-upgrades`; deploy the `52autoreboot.conf` policy from
   the reference deployment (also `-updates`, auto-reboot 04:00, kernel/dependency cleanup).
   On Kali: origins pattern adapted to kali-rolling, auto-reboot off by default.
+- `UPDATE_SKIP_DIST_UPGRADE=1` skips the immediate `dist-upgrade` (the `apt-get update`
+  still runs, and so does everything below). For a device whose first boot must not wait
+  on a long upgrade; unattended-upgrades does it later. Default `0`.
+- `UPGRADE_HOLD_PACKAGES` (space-separated shell globs, default empty) is written to
+  `Unattended-Upgrade::Package-Blacklist` in `52-vmt-autoupgrade`. Globs become anchored
+  regexes (`raspi-firmware` -> `raspi-firmware$`, `linux-image-*` -> `linux-image-.*$`),
+  because the option takes Python regexes matched from the start of the name. A held
+  package is upgraded only by hand.
+- **Raspberry Pi archive**: when `apt-cache policy` or the apt source files show
+  `archive.raspberrypi.com`, a separate drop-in `53-vmt-raspberrypi-origin` adds
+  `origin=Raspberry Pi Foundation,codename=${distro_codename},label=Raspberry Pi
+  Foundation` to `Origins-Pattern`. The strings are the `Origin`, `Label` and `Codename`
+  of the archive's `dists/trixie/Release` (its `Suite` is `stable`, so the codename is
+  what matches). The drop-in is removed when the archive is no longer configured.
 - Install `needrestart`, set `$nrconf{restart} = 'a'` (automatic service restarts).
 - Verify systemd-timesyncd (or chrony if present) is active and synchronized.
 
@@ -87,6 +118,11 @@ only when its config file changed or the unit is down, and `install_file` export
   reload, but only a real content change reports `CHANGED`.
 
 ## 40-firewall
+- `SSH_ALLOW_FROM` (space-separated addresses or CIDRs, default empty): when set, ufw
+  allows the SSH port only from those sources (`ufw allow from <src> to any port
+  <SSH_PORT> proto tcp`) and an existing open-to-anywhere rule for that port is deleted
+  after the new rules are in. The session running the module must come from one of the
+  sources or it is cut off. Default: SSH from anywhere, as before.
 - ufw: `default deny incoming`, `default allow outgoing`, allow `${SSH_PORT}/tcp` +
   `EXTRA_PORTS` (**default empty**), enable non-interactively. Only SSH is open unless
   the caller asks for more: 80/443 belong to a web host's build sheet, not to a generic
@@ -113,6 +149,9 @@ only when its config file changed or the unit is down, and `install_file` export
   pin, so the host converges on the reviewed revision.
 
 ## 50-fail2ban
+- `FAIL2BAN_IGNOREIP` (space-separated addresses or CIDRs, default empty) adds
+  `ignoreip = 127.0.0.1/8 ::1 <addresses>` to the sshd jail. Without it the jail has no
+  `ignoreip` line and fail2ban's own default applies.
 - Install; deploy `jail.d/sshd.local` (maxretry 3 / findtime 600 / bantime 3600,
   incremental to 5w). `backend = systemd` (mandatory on 24.04 — sshd logs to the journal,
   not `/var/log/auth.log`) and `allowipv6 = auto` (silences the dual-stack warning).
@@ -157,7 +196,12 @@ only when its config file changed or the unit is down, and `install_file` export
 
 ## 80-auditd (optional tier: `make harden TIER=full`)
 - auditd + minimal ruleset: identity files (passwd/group/sudoers), sshd_config,
-  docker daemon config, privileged execs. journald `Storage=persistent` always (base tier).
+  docker daemon config, privileged execs. journald storage is set in the base tier too:
+  `Storage=persistent` by default.
+- `JOURNAL_STORAGE=volatile` writes `/etc/systemd/journald.conf.d/50-vmt-volatile.conf`
+  (`Storage=volatile`, `RuntimeMaxUse=$JOURNAL_VOLATILE_MAX_USE`, default `32M`) so a
+  flash-card device does not wear out under log writes. Logs are lost on reboot. Going
+  back to `persistent` removes the drop-in.
 
 ## 90-report
 - Print per-module status table, `lynis audit system --quick` hardening index,
@@ -166,12 +210,15 @@ only when its config file changed or the unit is down, and `install_file` export
   any is not. That is what makes `make audit` a gate rather than a printout, so CI and
   the tier-3 runner can trust it.
   - Mandatory: SSH password/root login off, no ecdsa host key offered, ufw active,
-    fail2ban sshd jail up, unattended-upgrades enabled, journald persistent, core dumps
+    fail2ban sshd jail up, unattended-upgrades enabled, journald in the configured mode
+    (persistent by default; with `JOURNAL_STORAGE=volatile`, the drop-in with the
+    configured cap), core dumps
     off, module blacklist installed, `login.defs UMASK`, the admin's path to root, every
     key in `99-vmt-hardening.conf` that this kernel exposes, and `ssh-audit` finding
     nothing at warn/fail.
   - Informational (`[note]`, never fails): Docker present, auditd outside `TIER=full`.
-  - Skipped (`[skip]`, never fails): a sysctl key the running kernel does not expose,
+  - Skipped (`[skip]`, never fails): every control of a module named in `SKIP_MODULES`,
+    a sysctl key the running kernel does not expose,
     the whole sysctl sweep under WSL, and tools that are not installed.
   - The Lynis index is informational by default. `LYNIS_MIN=78` makes a drop below the
     recorded baseline fail instead.

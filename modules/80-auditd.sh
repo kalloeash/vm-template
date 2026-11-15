@@ -5,19 +5,50 @@
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 require_root
 require_distro ubuntu debian kali
+skip_if_requested auditd
 
-# --- journald persistence is base-tier (survives reboots for incident review) ---
-if [[ -f /etc/systemd/journald.conf ]]; then
-  if grep -qE '^\s*Storage=persistent' /etc/systemd/journald.conf; then
+# --- journald storage (base tier) ---------------------------------------------
+# Default JOURNAL_STORAGE=persistent: logs survive reboots for incident review, written
+# into the main journald.conf as before. JOURNAL_STORAGE=volatile keeps the journal in
+# RAM (/run/log/journal), capped at JOURNAL_VOLATILE_MAX_USE, for devices on flash media
+# where constant log writes wear the card; the trade is that logs are gone after a
+# reboot. Volatile goes in a drop-in, which overrides the main file and is removed when
+# the mode goes back to persistent.
+validate_journal
+journald_dropin="$VMT_JOURNALD_DROPIN"
+
+restart_journald() { is_wsl || systemctl restart systemd-journald >/dev/null 2>&1 || true; }
+
+if [[ $JOURNAL_STORAGE == volatile ]]; then
+  install_file "$journald_dropin" - <<EOF
+# Managed by vm-template (80-auditd). RAM-only journal, capped.
+[Journal]
+Storage=volatile
+RuntimeMaxUse=$JOURNAL_VOLATILE_MAX_USE
+EOF
+  if [[ $VMT_FILE_CHANGED == 1 && $DRY_RUN != 1 ]]; then restart_journald; fi
+  log_ok "journald volatile (RuntimeMaxUse=$JOURNAL_VOLATILE_MAX_USE); logs do not survive a reboot"
+elif [[ -f $journald_dropin ]]; then
+  if [[ $DRY_RUN == 1 ]]; then
+    log_changed "would remove $journald_dropin: back to persistent (dry-run)"
+  else
+    rm -f "$journald_dropin"
+    restart_journald
+    log_changed "removed $journald_dropin: journald back to the main file's setting"
+  fi
+fi
+
+if [[ $JOURNAL_STORAGE == persistent && -f $VMT_JOURNALD_CONF ]]; then
+  if grep -qE '^\s*Storage=persistent' "$VMT_JOURNALD_CONF"; then
     log_ok "journald already persistent"
   elif [[ $DRY_RUN == 1 ]]; then
     log_changed "would set journald Storage=persistent (dry-run)"
   else
     install -d -m 0755 /var/log/journal
-    sed -i 's/^\s*#\?\s*Storage=.*/Storage=persistent/' /etc/systemd/journald.conf
-    grep -qE '^Storage=persistent' /etc/systemd/journald.conf ||
-      echo 'Storage=persistent' >>/etc/systemd/journald.conf
-    is_wsl || systemctl restart systemd-journald >/dev/null 2>&1 || true
+    sed -i 's/^\s*#\?\s*Storage=.*/Storage=persistent/' "$VMT_JOURNALD_CONF"
+    grep -qE '^Storage=persistent' "$VMT_JOURNALD_CONF" ||
+      echo 'Storage=persistent' >>"$VMT_JOURNALD_CONF"
+    restart_journald
     log_changed "journald set to persistent"
   fi
 fi

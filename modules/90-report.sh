@@ -18,6 +18,13 @@ TIER="${TIER:-base}"
 # regression below the recorded baseline fail the audit.
 LYNIS_MIN="${LYNIS_MIN:-0}"
 
+# Same knobs the modules read, so the audit judges the host against what was asked for:
+# a module in SKIP_MODULES is reported [skip] with the reason, and JOURNAL_STORAGE selects
+# which journald state counts as correct. Both are validated here as well, because
+# `make audit` does not run preflight.
+validate_skip_modules
+validate_journal
+
 # A dry run applied nothing, so asserting end state would report the pre-existing host
 # and fail for the wrong reason. Say so and stop.
 if [[ $DRY_RUN == 1 ]]; then
@@ -56,6 +63,19 @@ skip() { # not verifiable here (unsupported kernel key, WSL, tool absent)
   printf '  [skip] %s\n' "$1"
 }
 
+# check/note/skip for a control that belongs to one module: when the caller skipped that
+# module the control was never applied, so it is reported as skipped, not as a failure.
+mcheck() { # mcheck MODULE LABEL cmd...
+  local mod="$1"
+  shift
+  if module_skipped "$mod"; then skip "$1 (module $mod skipped: SKIP_MODULES)"; else check "$@"; fi
+}
+mnote() {
+  local mod="$1"
+  shift
+  if module_skipped "$mod"; then skip "$1 (module $mod skipped: SKIP_MODULES)"; else note "$@"; fi
+}
+
 fail() { # a mandatory finding raised outside check()
   miss=$((miss + 1))
   printf '  [MISS] %s\n' "$1"
@@ -65,25 +85,32 @@ echo "==================== vm-template report ===================="
 echo "host: $(hostname)   distro: $os_id $os_codename$(is_wsl && echo '   (WSL)')"
 
 echo "--- state checks ---"
-check "password SSH disabled" bash -c "sshd -T 2>/dev/null | grep -qx 'passwordauthentication no'"
-check "root SSH disabled" bash -c "sshd -T 2>/dev/null | grep -qx 'permitrootlogin no'"
-check "no ecdsa host key offered" bash -c "sshd -T 2>/dev/null | grep -q '^hostkey ' && ! sshd -T 2>/dev/null | grep -q '^hostkey .*ecdsa'"
+mcheck ssh "password SSH disabled" bash -c "sshd -T 2>/dev/null | grep -qx 'passwordauthentication no'"
+mcheck ssh "root SSH disabled" bash -c "sshd -T 2>/dev/null | grep -qx 'permitrootlogin no'"
+mcheck ssh "no ecdsa host key offered" bash -c "sshd -T 2>/dev/null | grep -q '^hostkey ' && ! sshd -T 2>/dev/null | grep -q '^hostkey .*ecdsa'"
 # Logjam: a 2048-bit group in /etc/ssh/moduli is negotiable regardless of the drop-in.
-check "ssh moduli >= ${SSH_MIN_MODULUS:-3071} bits" bash -c \
+mcheck ssh "ssh moduli >= ${SSH_MIN_MODULUS:-3071} bits" bash -c \
   "[[ ! -f /etc/ssh/moduli ]] || [[ \$(awk -v m=${SSH_MIN_MODULUS:-3071} '!/^#/ && NF >= 5 && \$5 < m' /etc/ssh/moduli | wc -l) -eq 0 ]]"
-check "rsa host key >= 3072 bits" bash -c \
+mcheck ssh "rsa host key >= 3072 bits" bash -c \
   "[[ ! -f /etc/ssh/ssh_host_rsa_key ]] || [[ \$(ssh-keygen -lf /etc/ssh/ssh_host_rsa_key 2>/dev/null | awk '{print \$1}') -ge 3072 ]]"
-check "ufw active" bash -c "ufw status 2>/dev/null | grep -qi '^Status: active'"
+mcheck firewall "ufw active" bash -c "ufw status 2>/dev/null | grep -qi '^Status: active'"
 # fail2ban needs a moment to bring the jail up after a restart earlier in the run.
-check "fail2ban sshd jail" bash -c "for _ in 1 2 3 4 5; do fail2ban-client status sshd >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1"
-check "unattended-upgrades enabled" systemctl is-enabled unattended-upgrades
-check "journald persistent" bash -c "grep -qE '^Storage=persistent' /etc/systemd/journald.conf"
-check "core dumps disabled" bash -c "grep -qE '^\*\s+hard\s+core\s+0' /etc/security/limits.d/99-vmt-coredump.conf"
+mcheck fail2ban "fail2ban sshd jail" bash -c "for _ in 1 2 3 4 5; do fail2ban-client status sshd >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1"
+mcheck update "unattended-upgrades enabled" systemctl is-enabled unattended-upgrades
+# 80-auditd owns journald. Persistent (default): the main file says so. Volatile: the
+# drop-in says so and carries the size cap, so the audit accepts exactly what was asked for.
+if [[ $JOURNAL_STORAGE == volatile ]]; then
+  mcheck auditd "journald volatile, capped at $JOURNAL_VOLATILE_MAX_USE" bash -c \
+    "grep -qE '^Storage=volatile' '$VMT_JOURNALD_DROPIN' && grep -qE '^RuntimeMaxUse=$JOURNAL_VOLATILE_MAX_USE\$' '$VMT_JOURNALD_DROPIN'"
+else
+  mcheck auditd "journald persistent" bash -c "grep -qE '^Storage=persistent' '$VMT_JOURNALD_CONF'"
+fi
+mcheck hardening "core dumps disabled" bash -c "grep -qE '^\*\s+hard\s+core\s+0' /etc/security/limits.d/99-vmt-coredump.conf"
 # usb-storage is deliberately absent on hosts that boot from USB (65-hardening), so the
 # mandatory assertion is the rare-protocol set; usb-storage is reported separately.
-check "kernel module blacklist installed" bash -c "grep -qE '^install dccp' /etc/modprobe.d/99-vmt-blacklist.conf"
-note "usb-storage blocked" bash -c "grep -qE '^install usb-storage' /etc/modprobe.d/99-vmt-blacklist.conf"
-check "login.defs UMASK 027" bash -c "grep -qE '^UMASK[[:space:]]+027' /etc/login.defs"
+mcheck hardening "kernel module blacklist installed" bash -c "grep -qE '^install dccp' /etc/modprobe.d/99-vmt-blacklist.conf"
+mnote hardening "usb-storage blocked" bash -c "grep -qE '^install usb-storage' /etc/modprobe.d/99-vmt-blacklist.conf"
+mcheck hardening "login.defs UMASK 027" bash -c "grep -qE '^UMASK[[:space:]]+027' /etc/login.defs"
 
 # The admin must be able to reach root once root SSH login is gone: either a usable
 # password with sudo asking for it, or no password at all plus a NOPASSWD drop-in.
@@ -95,13 +122,13 @@ admin_priv() {
   [[ $state == P ]] && return 0
   grep -rqs "^$ADMIN_USER .*NOPASSWD" /etc/sudoers.d/
 }
-check "$ADMIN_USER can escalate to root" admin_priv
+mcheck user "$ADMIN_USER can escalate to root" admin_priv
 
-note "docker installed" docker --version
+mnote docker "docker installed" docker --version
 if [[ $TIER == full ]]; then
-  check "auditd running" bash -c "auditctl -s >/dev/null 2>&1"
+  mcheck auditd "auditd running" bash -c "auditctl -s >/dev/null 2>&1"
 else
-  note "auditd (TIER=full only)" bash -c "auditctl -s >/dev/null 2>&1"
+  mnote auditd "auditd (TIER=full only)" bash -c "auditctl -s >/dev/null 2>&1"
 fi
 
 # --- sysctl -------------------------------------------------------------------
@@ -126,7 +153,9 @@ sysctl_value_ok() {
 }
 
 echo "--- sysctl (from $sysctl_file) ---"
-if is_wsl; then
+if module_skipped sysctl; then
+  skip "sysctl sweep (module sysctl skipped: SKIP_MODULES)"
+elif is_wsl; then
   skip "sysctl sweep (WSL shares the host kernel)"
 elif [[ ! -r $sysctl_file ]]; then
   fail "$sysctl_file missing — 60-sysctl has not run"
@@ -153,9 +182,13 @@ echo "--- ssh-audit ---"
 # mean "no ssh daemon", which is not the same thing.
 # No early `exit` in the awk: under `set -o pipefail` an awk that stops reading sends
 # SIGPIPE to sshd -T, the pipeline returns 141, and the whole report aborts.
-sshd_port="$(sshd -T 2>/dev/null | awk '/^port /{p=$2} END{print p}')"
+# `|| true`: with no sshd on PATH the pipeline fails, and under set -e that would end the
+# whole report here instead of reaching the "sshd is not listening" finding below.
+sshd_port="$(sshd -T 2>/dev/null | awk '/^port /{p=$2} END{print p}' || true)"
 sshd_port="${sshd_port:-22}"
-if ! timeout 5 bash -c ": >/dev/tcp/127.0.0.1/$sshd_port" 2>/dev/null; then
+if module_skipped ssh; then
+  skip "ssh-audit (module ssh skipped: SKIP_MODULES)"
+elif ! timeout 5 bash -c ": >/dev/tcp/127.0.0.1/$sshd_port" 2>/dev/null; then
   fail "sshd is not listening on 127.0.0.1:$sshd_port"
 elif command -v ssh-audit >/dev/null; then
   audit_out="$(ssh-audit -n -l warn 127.0.0.1 2>/dev/null || true)"
@@ -174,7 +207,9 @@ fi
 echo "--- Lynis hardening index ---"
 if command -v lynis >/dev/null; then
   lynis audit system --quick --quiet >/tmp/vmt-lynis.log 2>&1 || true
-  idx="$(awk -F= '/^hardening_index=/{print $2}' /var/log/lynis-report.dat 2>/dev/null | tail -1)"
+  # `|| true`: a missing report file makes awk fail, and the "unknown" fallback below is
+  # the intended outcome, not an aborted audit.
+  idx="$(awk -F= '/^hardening_index=/{print $2}' /var/log/lynis-report.dat 2>/dev/null | tail -1 || true)"
   warns="$(grep -c '^warning\[\]=' /var/log/lynis-report.dat 2>/dev/null || echo '?')"
   echo "  hardening index: ${idx:-unknown} (target >= 75; fresh images ~50-65)"
   echo "  open warnings:   ${warns:-0} (address warnings before chasing the score)"

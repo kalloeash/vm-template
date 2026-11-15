@@ -3,6 +3,23 @@
 Notable changes per release. Format follows [Keep a Changelog](https://keepachangelog.com);
 versions follow [SemVer](https://semver.org). Dates are ISO-8601.
 
+## [Unreleased]
+
+### Added — Raspberry Pi kiosk profile (ticket 016)
+
+- `SKIP_MODULES="docker"` leaves modules out of `make harden`; `make audit` reports their
+  controls as `[skip]` with the reason. Unknown names fail preflight.
+- `10-update`: `UPDATE_SKIP_DIST_UPGRADE=1` skips the immediate `dist-upgrade`;
+  `UPGRADE_HOLD_PACKAGES` writes `Unattended-Upgrade::Package-Blacklist`; a separate
+  drop-in adds the Raspberry Pi archive origin when apt shows the archive is configured.
+- `JOURNAL_STORAGE=volatile` (with `JOURNAL_VOLATILE_MAX_USE`, default `32M`) for devices
+  on flash media; the audit accepts the configured mode. Default stays `persistent`.
+- `FAIL2BAN_IGNOREIP` for the sshd jail and `SSH_ALLOW_FROM` to open the SSH port only
+  from given sources. Defaults keep today's behaviour.
+- `examples/raspberry-pi-kiosk.env` and `docs/RASPBERRY-PI.md`. A CI job applies the
+  profile on the arm64 Ubuntu runner (not Raspberry Pi OS).
+- Known gap: none of this has run on a physical Raspberry Pi or on Raspberry Pi OS.
+
 ## [1.0.0] — 2026-08-10
 
 First release considered safe to point at a machine you care about. The modules existed

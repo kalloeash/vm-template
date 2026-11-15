@@ -4,6 +4,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 require_root
 require_distro ubuntu debian kali
+skip_if_requested sysctl
 
 # Deliberately excluded (documented): disable_ipv6 (breaks dual-stack) and
 # unprivileged_userns_clone=0 (breaks rootless containers).

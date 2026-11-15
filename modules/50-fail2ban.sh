@@ -6,14 +6,23 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 require_root
 require_distro ubuntu debian kali
 
+skip_if_requested fail2ban
+
+# Addresses or CIDRs fail2ban never bans (space separated). Default empty: the jail keeps
+# fail2ban's own default (127.0.0.1/8 ::1). A single-admin LAN device sets the admin's
+# machine here so a few mistyped passphrases cannot ban the only way in.
+FAIL2BAN_IGNOREIP="${FAIL2BAN_IGNOREIP:-}"
+validate_address_list FAIL2BAN_IGNOREIP "$FAIL2BAN_IGNOREIP"
+ignoreip_line=""
+[[ -z $FAIL2BAN_IGNOREIP ]] || ignoreip_line="ignoreip = 127.0.0.1/8 ::1 $FAIL2BAN_IGNOREIP"
+
 apt_install fail2ban
 
 # backend = systemd is mandatory on 24.04/Debian 13: sshd logs to the journal,
 # not /var/log/auth.log, so the default `auto` backend fails to start the jail.
 # allowipv6 = auto silences the dual-stack warning. Only a jail.d drop-in — never
 # a full jail.conf -> jail.local copy.
-install_file /etc/fail2ban/jail.d/sshd.local - <<'EOF'
-# Managed by vm-template (50-fail2ban).
+jail="# Managed by vm-template (50-fail2ban).
 [DEFAULT]
 allowipv6 = auto
 
@@ -27,8 +36,9 @@ findtime = 600
 bantime  = 3600
 bantime.increment = true
 bantime.factor    = 24
-bantime.maxtime   = 5w
-EOF
+bantime.maxtime   = 5w"
+[[ -z $ignoreip_line ]] || jail+=$'\n'"$ignoreip_line"
+install_file /etc/fail2ban/jail.d/sshd.local - <<<"$jail"
 
 jail_changed=$VMT_FILE_CHANGED
 

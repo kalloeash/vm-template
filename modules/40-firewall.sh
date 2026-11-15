@@ -6,7 +6,15 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 require_root
 require_distro ubuntu debian kali
 
+skip_if_requested firewall
+
 SSH_PORT="${SSH_PORT:-22}"
+# Space-separated addresses or CIDRs allowed to reach SSH. Default empty: SSH is open from
+# anywhere, as before. When set, the port is opened only for those sources and the
+# open-to-anywhere rule is removed. The session running this must come from one of them,
+# or it is cut off once the old rule goes.
+SSH_ALLOW_FROM="${SSH_ALLOW_FROM:-}"
+validate_address_list SSH_ALLOW_FROM "$SSH_ALLOW_FROM"
 # Only SSH is opened by default. 80/443 came from the web server this baseline grew out
 # of; a generic hardened VM should not decide that the host serves HTTP. Web hosts pass
 # EXTRA_PORTS="80/tcp 443/tcp" themselves.
@@ -33,9 +41,23 @@ ufw_do() { if [[ $DRY_RUN == 1 ]]; then log_changed "ufw $* (dry-run)"; else ufw
 
 ufw_do default deny incoming
 ufw_do default allow outgoing
-ufw_do allow "${SSH_PORT}/tcp"
+if [[ -z $SSH_ALLOW_FROM ]]; then
+  ufw_do allow "${SSH_PORT}/tcp"
+  ssh_scope="anywhere"
+else
+  for src in $SSH_ALLOW_FROM; do
+    ufw_do allow from "$src" to any port "$SSH_PORT" proto tcp
+  done
+  # Rules added first, so there is no moment without SSH access. A leftover
+  # open-to-anywhere rule from an earlier run would defeat the restriction.
+  if ufw status 2>/dev/null | grep -qE "^${SSH_PORT}/tcp( \(v6\))?[[:space:]]+ALLOW[[:space:]]+Anywhere"; then
+    ufw_do --force delete allow "${SSH_PORT}/tcp"
+  fi
+  ssh_scope="from ${SSH_ALLOW_FROM}"
+  log_warn "SSH_ALLOW_FROM is set: ssh:${SSH_PORT} reachable only from ${SSH_ALLOW_FROM}"
+fi
 for p in $EXTRA_PORTS; do ufw_do allow "$p"; done
-log_ok "ufw rules declared (ssh:${SSH_PORT}, extra: ${EXTRA_PORTS:-none})"
+log_ok "ufw rules declared (ssh:${SSH_PORT} ${ssh_scope}, extra: ${EXTRA_PORTS:-none})"
 
 # --- stop ufw from owning kernel tuning --------------------------------------
 # ufw ships /etc/ufw/sysctl.conf and applies it on every enable and reload. On Ubuntu it

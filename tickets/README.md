@@ -33,6 +33,7 @@ plan for the modules the [assessment](../docs/ASSESSMENT.md) specifies.
 | [013](013-cloud-init-delivery.md) | cloud-init first-boot delivery path | done | 001–009 |
 | [014](014-packer-golden-image.md) | Packer golden-image roadmap | draft | 013 |
 | [015](015-ssh-host-key-hygiene.md) | `30-ssh`: host-key + moduli hygiene | done | 004 |
+| [016](016-raspberry-pi-kiosk-profile.md) | Raspberry Pi kiosk profile: module skip, Pi archive origin, volatile journal | in-progress | 002, 005, 006, 009 |
 
 **Tier-3 acceptance (2026-08-09):** all base modules verified on a real Ubuntu 24.04
 Hetzner VM — every control green, ssh-audit clean, idempotent, lockout drill passed,
@@ -53,7 +54,8 @@ broken control. Hetzner ARM (cax11–cax41) was `resource_unavailable` in all th
 locations that offer it, so the one arm64 gap left is the SSH lockout drill, which needs
 a VM reachable from outside.
 
-**Still owed:** physical Raspberry Pi acceptance, including the USB-root detection in
+**Still owed:** physical Raspberry Pi acceptance (ticket 016 is `in-progress` until a
+board has run it), including the USB-root detection in
 65-hardening, which reads `/sys/block` and cannot be exercised anywhere else.
 
 Legend: `draft` = needs a decision before an agent starts · `ready` = agent-pickable ·

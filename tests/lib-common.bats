@@ -128,3 +128,47 @@ setup() {
   [ ! -e "$marker" ]
   assert_output_matches 'dry-run'
 }
+
+# --- validators for the optional knobs ------------------------------------------------
+
+@test "is_ip_or_cidr accepts IPv4, IPv6 and CIDR forms" {
+  for a in 192.168.1.10 10.0.0.0/8 0.0.0.0/0 ::1 fd00::/8 2001:db8::1 fe80::1/64; do
+    run bash -c "source '$REPO_ROOT/lib/common.sh'; is_ip_or_cidr '$a'"
+    [ "$status" -eq 0 ] || {
+      echo "rejected $a" >&2
+      return 1
+    }
+  done
+}
+
+@test "is_ip_or_cidr rejects hostnames, bad octets and bad prefixes" {
+  for a in laptop.local 192.168.1 192.168.1.256 1.2.3.4/33 fd00::/129 1.2.3.4/ abc; do
+    run bash -c "source '$REPO_ROOT/lib/common.sh'; is_ip_or_cidr '$a'"
+    [ "$status" -ne 0 ] || {
+      echo "accepted $a" >&2
+      return 1
+    }
+  done
+}
+
+@test "glob_to_regex anchors the end and keeps the start for re.match" {
+  run bash -c "source '$REPO_ROOT/lib/common.sh'; glob_to_regex 'raspi-firmware linux-image-*'"
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = 'raspi-firmware$' ]
+  [ "${lines[1]}" = 'linux-image-.*$' ]
+}
+
+@test "glob_to_regex on an empty list prints nothing" {
+  run bash -c "source '$REPO_ROOT/lib/common.sh'; glob_to_regex ''"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "install_file shows the content under DRY_RUN=1 only when asked" {
+  run bash -c "source '$REPO_ROOT/lib/common.sh'; DRY_RUN=1; echo hello | install_file '$BATS_TEST_TMPDIR/x' -"
+  [ "$status" -eq 0 ]
+  if grep -q hello <<<"$output"; then return 1; fi
+  run bash -c "source '$REPO_ROOT/lib/common.sh'; DRY_RUN=1 VMT_SHOW_CONTENT=1; echo hello | install_file '$BATS_TEST_TMPDIR/x' -"
+  [ "$status" -eq 0 ]
+  grep -q '| hello' <<<"$output"
+}

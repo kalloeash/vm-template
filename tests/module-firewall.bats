@@ -44,6 +44,59 @@ EOF
   assert_output_matches 'ufw allow 2222/tcp'
 }
 
+# --- SSH_ALLOW_FROM -----------------------------------------------------------
+
+@test "default: SSH is opened from anywhere, no source rule, no delete" {
+  run run_module 40-firewall "COMPOSE_SCAN_DIRS=$SCAN"
+  [ "$status" -eq 0 ]
+  assert_output_matches 'ufw allow 22/tcp'
+  assert_output_matches 'ssh:22 anywhere'
+  refute_output_matches 'ufw allow from'
+  refute_output_matches 'delete'
+}
+
+@test "SSH_ALLOW_FROM opens SSH only from the given sources" {
+  run run_module 40-firewall "COMPOSE_SCAN_DIRS=$SCAN" 'SSH_ALLOW_FROM=192.168.1.0/24 fd00::/8'
+  [ "$status" -eq 0 ]
+  assert_output_matches 'ufw allow from 192\.168\.1\.0/24 to any port 22 proto tcp'
+  assert_output_matches 'ufw allow from fd00::/8 to any port 22 proto tcp'
+  refute_output_matches 'ufw allow 22/tcp'
+  assert_output_matches 'SSH_ALLOW_FROM is set'
+}
+
+@test "SSH_ALLOW_FROM honours SSH_PORT" {
+  run run_module 40-firewall "COMPOSE_SCAN_DIRS=$SCAN" SSH_PORT=2222 SSH_ALLOW_FROM=10.0.0.5
+  [ "$status" -eq 0 ]
+  assert_output_matches 'ufw allow from 10\.0\.0\.5 to any port 2222 proto tcp'
+}
+
+@test "an open-to-anywhere rule from an earlier run is removed once sources are set" {
+  cat >"$STUB_BIN/ufw" <<'SH'
+#!/bin/bash
+if [ "$1" = status ]; then
+  printf 'Status: active\n\nTo   Action   From\n--   ------   ----\n22/tcp   ALLOW   Anywhere\n22/tcp (v6)   ALLOW   Anywhere (v6)\n'
+fi
+exit 0
+SH
+  chmod +x "$STUB_BIN/ufw"
+  run run_module 40-firewall "COMPOSE_SCAN_DIRS=$SCAN" SSH_ALLOW_FROM=192.168.1.0/24
+  [ "$status" -eq 0 ]
+  assert_output_matches 'ufw --force delete allow 22/tcp'
+}
+
+@test "no delete when the open rule is not there" {
+  run run_module 40-firewall "COMPOSE_SCAN_DIRS=$SCAN" SSH_ALLOW_FROM=192.168.1.0/24
+  [ "$status" -eq 0 ]
+  refute_output_matches 'delete'
+}
+
+@test "a SSH_ALLOW_FROM entry that is not an address is rejected before any rule is added" {
+  run run_module 40-firewall "COMPOSE_SCAN_DIRS=$SCAN" 'SSH_ALLOW_FROM=192.168.1.0/24 laptop.local'
+  [ "$status" -eq 1 ]
+  assert_output_matches "SSH_ALLOW_FROM: 'laptop.local' is not an IPv4/IPv6 address or CIDR"
+  refute_output_matches 'ufw allow'
+}
+
 # --- compose scan -------------------------------------------------------------
 
 @test "a non-loopback compose publish is reported" {
