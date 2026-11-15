@@ -19,14 +19,79 @@ setup() {
   refute_output_matches '^CHANGED: /etc/ssh'
 }
 
-@test "the drop-in the module would write has no ecdsa host key" {
-  # The ecdsa host key is what ssh-audit flags; the drop-in exists to stop offering it.
+@test "the drop-in pins only host keys the module found, never a fixed path" {
+  # No literal HostKey line: the lines come from ssh_pinnable_hostkeys.
   run grep -c '^HostKey' "$REPO_ROOT/modules/30-ssh.sh"
-  [ "$output" -eq 2 ]
-  run grep '^HostKey' "$REPO_ROOT/modules/30-ssh.sh"
-  assert_output_matches 'ssh_host_ed25519_key'
-  assert_output_matches 'ssh_host_rsa_key'
+  [ "$output" -eq 0 ]
+  grep -q 'ssh_pinnable_hostkeys' "$REPO_ROOT/modules/30-ssh.sh"
+}
+
+# A fake sshd whose -T output lists the given host key paths, and fake key files.
+fake_sshd_with_keys() {
+  KEYDIR="$BATS_TEST_TMPDIR/keys"
+  mkdir -p "$KEYDIR"
+  {
+    echo '#!/bin/bash'
+    echo 'echo "port 22"'
+    for k in "$@"; do echo "echo \"hostkey $k\""; done
+  } >"$STUB_BIN/sshd"
+  chmod +x "$STUB_BIN/sshd"
+  # ssh-keygen stub: the type comes from the file name
+  cat >"$STUB_BIN/ssh-keygen" <<'SH'
+#!/bin/bash
+f="${@: -1}"
+case "$f" in
+  *ecdsa*) echo "256 SHA256:x no comment (ECDSA)" ;;
+  *rsa*) echo "3072 SHA256:x no comment (RSA)" ;;
+  *) echo "256 SHA256:x no comment (ED25519)" ;;
+esac
+SH
+  chmod +x "$STUB_BIN/ssh-keygen"
+}
+
+pinnable() {
+  run env PATH="$STUB_BIN:$PATH" bash -c "source '$REPO_ROOT/lib/common.sh'; ssh_pinnable_hostkeys"
+}
+
+@test "host keys that live outside /etc/ssh are pinned where sshd found them" {
+  fake_sshd_with_keys "$BATS_TEST_TMPDIR/keys/ssh_host_ed25519_key"
+  : >"$BATS_TEST_TMPDIR/keys/ssh_host_ed25519_key"
+  pinnable
+  [ "$status" -eq 0 ]
+  [ "$output" = "$BATS_TEST_TMPDIR/keys/ssh_host_ed25519_key" ]
+}
+
+@test "a configured host key path that does not exist is not pinned" {
+  fake_sshd_with_keys /nonexistent/ssh_host_ed25519_key /nonexistent/ssh_host_rsa_key \
+    "$BATS_TEST_TMPDIR/keys/ssh_host_ed25519_key"
+  : >"$BATS_TEST_TMPDIR/keys/ssh_host_ed25519_key"
+  pinnable
+  [ "$status" -eq 0 ]
+  refute_output_matches 'nonexistent'
+  assert_output_matches 'keys/ssh_host_ed25519_key$'
+}
+
+@test "ecdsa keys are never pinned, even when they exist" {
+  fake_sshd_with_keys "$BATS_TEST_TMPDIR/keys/ssh_host_ecdsa_key" "$BATS_TEST_TMPDIR/keys/ssh_host_rsa_key"
+  : >"$BATS_TEST_TMPDIR/keys/ssh_host_ecdsa_key"
+  : >"$BATS_TEST_TMPDIR/keys/ssh_host_rsa_key"
+  pinnable
   refute_output_matches 'ecdsa'
+  assert_output_matches 'ssh_host_rsa_key'
+}
+
+@test "no existing key means nothing is pinned" {
+  fake_sshd_with_keys /nonexistent/a_key
+  pinnable
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "missing configured host keys are reported, which sshd -t does not do" {
+  fake_sshd_with_keys /nonexistent/ssh_host_rsa_key "$BATS_TEST_TMPDIR/keys/ssh_host_ed25519_key"
+  : >"$BATS_TEST_TMPDIR/keys/ssh_host_ed25519_key"
+  run env PATH="$STUB_BIN:$PATH" bash -c "source '$REPO_ROOT/lib/common.sh'; ssh_missing_hostkeys"
+  [ "$output" = "/nonexistent/ssh_host_rsa_key" ]
 }
 
 @test "moduli pruning keeps groups at or above the floor and drops the rest" {

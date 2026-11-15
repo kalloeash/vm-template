@@ -143,3 +143,61 @@ SRC
   [ -n "$policy_part" ]
   if grep -q 'Raspberry' <<<"$policy_part"; then return 1; fi
 }
+
+# --- unattended-upgrades syntax and kernel removal ---------------------------------
+
+# /etc/os-release fixtures, so the Debian and Kali branches run on any runner.
+os_release() { # os_release ID CODENAME
+  printf 'ID=%s\nVERSION_CODENAME=%s\n' "$1" "$2" >"$BATS_TEST_TMPDIR/os-release"
+  OSR="VMT_OS_RELEASE=$BATS_TEST_TMPDIR/os-release"
+}
+
+@test "Debian origins use Origins-Pattern, the only key that takes origin=... strings" {
+  os_release debian trixie
+  run run_module 10-update "APT_SOURCE_PATHS=$SRC" "$OSR" VMT_SHOW_CONTENT=1
+  [ "$status" -eq 0 ]
+  assert_output_matches 'Unattended-Upgrade::Origins-Pattern \{'
+  refute_output_matches 'Allowed-Origins'
+  assert_output_matches '"origin=Debian,codename=\$\{distro_codename\},label=Debian";'
+}
+
+@test "the Debian security origin matches the -security suite codename" {
+  os_release debian trixie
+  run run_module 10-update "APT_SOURCE_PATHS=$SRC" "$OSR" VMT_SHOW_CONTENT=1
+  assert_output_matches '"origin=Debian,codename=\$\{distro_codename\}-security,label=Debian-Security";'
+  assert_output_matches '"origin=Debian,codename=\$\{distro_codename\}-updates,label=Debian";'
+}
+
+@test "Kali origins use Origins-Pattern too" {
+  os_release kali kali-rolling
+  run run_module 10-update "APT_SOURCE_PATHS=$SRC" "$OSR" VMT_SHOW_CONTENT=1
+  [ "$status" -eq 0 ]
+  assert_output_matches 'Unattended-Upgrade::Origins-Pattern \{'
+  refute_output_matches 'Allowed-Origins'
+}
+
+@test "Ubuntu keeps the legacy Allowed-Origins form" {
+  os_release ubuntu noble
+  run run_module 10-update "APT_SOURCE_PATHS=$SRC" "$OSR" VMT_SHOW_CONTENT=1
+  [ "$status" -eq 0 ]
+  assert_output_matches 'Unattended-Upgrade::Allowed-Origins \{'
+  assert_output_matches '"\$\{distro_id\}:\$\{distro_codename\}-security";'
+  refute_output_matches 'Origins-Pattern \{'
+}
+
+@test "old kernels are removed by default" {
+  run run_module 10-update "APT_SOURCE_PATHS=$SRC" VMT_SHOW_CONTENT=1
+  assert_output_matches 'Remove-Unused-Kernel-Packages "true";'
+}
+
+@test "UPGRADE_REMOVE_UNUSED_KERNELS=0 keeps the previous kernel" {
+  run run_module 10-update "APT_SOURCE_PATHS=$SRC" VMT_SHOW_CONTENT=1 UPGRADE_REMOVE_UNUSED_KERNELS=0
+  [ "$status" -eq 0 ]
+  assert_output_matches 'Remove-Unused-Kernel-Packages "false";'
+}
+
+@test "an invalid UPGRADE_REMOVE_UNUSED_KERNELS is rejected" {
+  run run_module 10-update "APT_SOURCE_PATHS=$SRC" UPGRADE_REMOVE_UNUSED_KERNELS=no
+  [ "$status" -eq 1 ]
+  assert_output_matches 'UPGRADE_REMOVE_UNUSED_KERNELS must be 0 or 1'
+}

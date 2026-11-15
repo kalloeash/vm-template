@@ -12,6 +12,8 @@ validate_skip_modules
 validate_flag01 UPDATE_SKIP_DIST_UPGRADE "${UPDATE_SKIP_DIST_UPGRADE:-0}"
 glob_to_regex "${UPGRADE_HOLD_PACKAGES:-}" >/dev/null
 validate_journal
+validate_admin_sudo
+validate_flag01 UPGRADE_REMOVE_UNUSED_KERNELS "${UPGRADE_REMOVE_UNUSED_KERNELS:-1}"
 validate_address_list FAIL2BAN_IGNOREIP "${FAIL2BAN_IGNOREIP:-}"
 validate_address_list SSH_ALLOW_FROM "${SSH_ALLOW_FROM:-}"
 if [[ -n $SKIP_MODULES ]]; then

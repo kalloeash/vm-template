@@ -24,6 +24,7 @@ LYNIS_MIN="${LYNIS_MIN:-0}"
 # `make audit` does not run preflight.
 validate_skip_modules
 validate_journal
+validate_admin_sudo
 
 # A dry run applied nothing, so asserting end state would report the pre-existing host
 # and fail for the wrong reason. Say so and stop.
@@ -122,7 +123,13 @@ admin_priv() {
   [[ $state == P ]] && return 0
   grep -rqs "^$ADMIN_USER .*NOPASSWD" /etc/sudoers.d/
 }
-mcheck user "$ADMIN_USER can escalate to root" admin_priv
+# ADMIN_SUDO=keep means the sudo rules are the image's own (possibly narrow on purpose),
+# so the control is informational: it is reported, never fails the audit.
+if [[ ${ADMIN_SUDO:-} == keep ]]; then
+  mnote user "$ADMIN_USER can escalate to root (ADMIN_SUDO=keep: rules left as found, informational)" admin_priv
+else
+  mcheck user "$ADMIN_USER can escalate to root" admin_priv
+fi
 
 mnote docker "docker installed" docker --version
 if [[ $TIER == full ]]; then

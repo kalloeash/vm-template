@@ -22,6 +22,12 @@ if [[ -n $ADMIN_PASSWORD_HASH_FILE ]]; then
   ADMIN_PASSWORD_HASH="$(head -n1 "$ADMIN_PASSWORD_HASH_FILE" | tr -d '\r\n')"
 fi
 
+# What to do about the admin's sudo rights; see validate_admin_sudo in lib/common.sh.
+# keep leaves the sudo group and all sudoers rules as found, for an appliance image that
+# ships a narrow rule for the admin on purpose.
+ADMIN_SUDO="${ADMIN_SUDO:-}"
+validate_admin_sudo
+
 # The name is interpolated into a sudoers file — reject anything that is not a
 # plain login name before it gets there.
 [[ $ADMIN_USER =~ ^[a-z_][a-z0-9_-]*$ ]] || die "invalid ADMIN_USER '$ADMIN_USER'"
@@ -78,27 +84,46 @@ has_password=0
 [[ $(pw_state "$ADMIN_USER") == P ]] && has_password=1
 
 # --- sudo group --------------------------------------------------------------
-if id -nG "$ADMIN_USER" 2>/dev/null | tr ' ' '\n' | grep -qx sudo; then
+if [[ $ADMIN_SUDO == keep ]]; then
+  # Nothing is added or widened. Only check that some sudo rule exists for the account,
+  # so root SSH login being off does not strand the admin; the audit reports the rest as
+  # informational (it cannot judge a custom rule).
+  if [[ $DRY_RUN == 1 ]]; then
+    log_ok "ADMIN_SUDO=keep: sudo group and sudoers rules for $ADMIN_USER left as found (dry-run, not checked)"
+  elif ! id "$ADMIN_USER" &>/dev/null; then
+    log_warn "ADMIN_SUDO=keep but $ADMIN_USER does not exist"
+  elif sudo -n -l -U "$ADMIN_USER" 2>/dev/null | grep -qE '^[[:space:]]+\('; then
+    log_ok "ADMIN_SUDO=keep: $ADMIN_USER has a sudo rule; groups and sudoers left as found"
+  else
+    log_warn "ADMIN_SUDO=keep but 'sudo -l -U $ADMIN_USER' lists no rule — the admin may have no way to root"
+  fi
+elif id -nG "$ADMIN_USER" 2>/dev/null | tr ' ' '\n' | grep -qx sudo; then
   log_ok "$ADMIN_USER already in sudo"
 else
   run "add $ADMIN_USER to sudo" usermod -aG sudo "$ADMIN_USER"
 fi
 
 # --- sudo password policy ----------------------------------------------------
-if [[ $has_password == 1 ]]; then
+if [[ $ADMIN_SUDO == nopasswd ]]; then
+  SUDO_NOPASSWD=1
+elif [[ $ADMIN_SUDO == password ]]; then
+  SUDO_NOPASSWD=0
+elif [[ $has_password == 1 ]]; then
   SUDO_NOPASSWD="${SUDO_NOPASSWD:-0}"
 else
   SUDO_NOPASSWD="${SUDO_NOPASSWD:-1}"
 fi
 
-if [[ $SUDO_NOPASSWD != 1 && $has_password != 1 ]]; then
+if [[ $ADMIN_SUDO != keep && $SUDO_NOPASSWD != 1 && $has_password != 1 ]]; then
   die "$ADMIN_USER has no usable password but SUDO_NOPASSWD=0 — sudo would be unusable
          once 30-ssh disables root login. Set ADMIN_PASSWORD_HASH=<crypt hash> for a
          password-based model, or SUDO_NOPASSWD=1 for the key-only model."
 fi
 
 sudoers="/etc/sudoers.d/90-vmt-$ADMIN_USER"
-if [[ $SUDO_NOPASSWD == 1 ]]; then
+if [[ $ADMIN_SUDO == keep ]]; then
+  log_ok "sudoers left as found (ADMIN_SUDO=keep)"
+elif [[ $SUDO_NOPASSWD == 1 ]]; then
   install_file "$sudoers" - 0440 <<EOF
 $ADMIN_USER ALL=(ALL) NOPASSWD:ALL
 EOF

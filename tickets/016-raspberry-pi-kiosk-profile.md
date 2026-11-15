@@ -3,6 +3,16 @@
 **Status:** in-progress (implemented and tested in CI; acceptance on a physical Raspberry Pi is open)
 **Depends on:** 002, 005, 006, 009
 
+## Run on 15-11-2026
+
+The profile was applied in a Debian 13 arm64 VM booted from the userspace of a Raspberry
+Pi OS kiosk image: `make harden` exit 0, `make audit` PASS 36/0/2, Lynis 75, SSH kept,
+reboot fine. It found four defects, fixed on this branch with bats tests: (1)
+`Allowed-Origins` with `origin=` strings broke unattended-upgrades (also on `develop`),
+(2) `20-user` widened the admin's sudo (`ADMIN_SUDO`), (3) the previous kernel was removed
+(`UPGRADE_REMOVE_UNUSED_KERNELS`), (4) `30-ssh` pinned host key paths that do not exist.
+Still not run: a physical Pi and the Pi kernel (criterion 9).
+
 ## Context
 
 A Raspberry Pi 4 kiosk running Raspberry Pi OS (Debian 13 trixie, arm64) is hardened at

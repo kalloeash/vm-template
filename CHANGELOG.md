@@ -18,7 +18,25 @@ versions follow [SemVer](https://semver.org). Dates are ISO-8601.
   from given sources. Defaults keep today's behaviour.
 - `examples/raspberry-pi-kiosk.env` and `docs/RASPBERRY-PI.md`. A CI job applies the
   profile on the arm64 Ubuntu runner (not Raspberry Pi OS).
-- Known gap: none of this has run on a physical Raspberry Pi or on Raspberry Pi OS.
+- `ADMIN_SUDO=keep|nopasswd|password` for `20-user`: `keep` leaves the admin's sudo rules
+  as found and the audit reports the escalation control as informational. Unset keeps
+  today's behaviour.
+- `UPGRADE_REMOVE_UNUSED_KERNELS=0` keeps the previous kernel
+  (`Remove-Unused-Kernel-Packages "false"`). Default `1`.
+- Known gap: none of this has run on a physical Raspberry Pi. On 15-11-2026 it ran in a
+  Debian 13 arm64 VM booted from the kiosk image's userspace (harden exit 0, audit PASS
+  36/0/2, Lynis 75, SSH kept, reboot fine).
+
+### Fixed — found by that run
+
+- **unattended-upgrades rejected its own configuration on Debian and Kali.** The
+  `origin=...` strings were under `Allowed-Origins`, which takes only the legacy form;
+  every run stopped with "Unable to parse Unattended-Upgrade::Allowed-Origins". They are
+  now under `Origins-Pattern`, and the Debian security origin matches the
+  `<codename>-security` suite. The same defect is on `develop`.
+- **`30-ssh` pinned host keys that do not exist.** It now pins the keys `sshd -T` reports
+  that exist on disk, and rolls back a drop-in that pins a missing path (`sshd -t`
+  passes while any one key loads).
 
 ## [1.0.0] — 2026-08-10
 

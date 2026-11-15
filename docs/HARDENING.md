@@ -55,6 +55,16 @@ single `make <module>` is checked too. The Raspberry Pi bundle is in
   regexes (`raspi-firmware` -> `raspi-firmware$`, `linux-image-*` -> `linux-image-.*$`),
   because the option takes Python regexes matched from the start of the name. A held
   package is upgraded only by hand.
+- **Origins syntax**: on Debian and Kali the origins are written under
+  `Unattended-Upgrade::Origins-Pattern` (`origin=Debian,codename=...` strings); that key
+  is the only one that takes them. Under `Allowed-Origins` they make `unattended-upgrade`
+  stop with "Unable to parse Unattended-Upgrade::Allowed-Origins". Ubuntu keeps the
+  legacy `Allowed-Origins` form (`${distro_id}:${distro_codename}-security`). The Debian
+  security suite is `<codename>-security`, so the pattern is
+  `codename=${distro_codename}-security,label=Debian-Security`.
+- `UPGRADE_REMOVE_UNUSED_KERNELS` (`1` default, `0`) sets
+  `Remove-Unused-Kernel-Packages`. Set `0` on a host that holds kernel packages back:
+  the previous kernel is then the only rollback.
 - **Raspberry Pi archive**: when `apt-cache policy` or the apt source files show
   `archive.raspberrypi.com`, a separate drop-in `53-vmt-raspberrypi-origin` adds
   `origin=Raspberry Pi Foundation,codename=${distro_codename},label=Raspberry Pi
@@ -81,6 +91,12 @@ single `make <module>` is checked too. The Raspberry Pi bundle is in
 - `SUDO_NOPASSWD` still overrides the default, but the combination "no usable password
   and `SUDO_NOPASSWD=0`" is rejected with a fatal error rather than shipped: after
   30-ssh disables root login it leaves no path to root.
+- `ADMIN_SUDO` (default unset = the behaviour above): `nopasswd` forces the NOPASSWD
+  drop-in, `password` forces password-asked sudo (needs a password), `keep` leaves the
+  sudo group and every sudoers rule as found, for an image that ships a narrow rule for
+  the admin. With `keep` the module only checks that `sudo -l -U <admin>` lists a rule
+  (a warning otherwise) and `make audit` reports "can escalate to root" as `[note]`
+  instead of a mandatory control, because it cannot judge a custom rule.
 - A pre-existing account's password state is never changed; the model is derived from
   what `passwd -S` reports.
 
@@ -93,8 +109,12 @@ single `make <module>` is checked too. The Raspberry Pi bundle is in
   optional `AllowUsers ${ADMIN_USER}` (`SSH_ALLOW_USERS=1`).
 - Modern algorithms (curve25519/aes-gcm/chacha20/ed25519 family) — the exact set is
   whatever current `ssh-audit` passes clean on the target OpenSSH version.
-- **Host keys**: the drop-in pins `HostKey` to the ed25519 and RSA keys, so sshd stops
-  offering the ecdsa (nistp256) key that `ssh-audit` flags.
+- **Host keys**: the drop-in pins `HostKey` to the ed25519 and RSA keys sshd is
+  configured with (`sshd -T`, read before the drop-in is written) that exist on disk, so
+  sshd stops offering the ecdsa (nistp256) key that `ssh-audit` flags. A host whose keys
+  live elsewhere keeps them; a path that does not exist is never pinned. `sshd -t`
+  passes as long as one host key loads, so after it the module checks every configured
+  path and rolls back a drop-in that pins a missing one.
 - **Moduli**: `/etc/ssh/moduli` is pruned of Diffie-Hellman groups below
   `SSH_MIN_MODULUS` (default 3071 bits) — the Logjam exposure, and negotiable no matter
   what the drop-in says. If nothing would survive the filter the file is left alone and

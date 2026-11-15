@@ -18,6 +18,12 @@ validate_flag01 UPDATE_SKIP_DIST_UPGRADE "$UPDATE_SKIP_DIST_UPGRADE"
 # bootloader on a device that cannot be recovered remotely). Default empty = no blacklist.
 UPGRADE_HOLD_PACKAGES="${UPGRADE_HOLD_PACKAGES:-}"
 hold_regexes="$(glob_to_regex "$UPGRADE_HOLD_PACKAGES")"
+# 1 (default) lets unattended-upgrades remove old kernel packages. Set 0 on a host that
+# holds kernel packages back: the previous kernel is then the only way to roll back.
+UPGRADE_REMOVE_UNUSED_KERNELS="${UPGRADE_REMOVE_UNUSED_KERNELS:-1}"
+validate_flag01 UPGRADE_REMOVE_UNUSED_KERNELS "$UPGRADE_REMOVE_UNUSED_KERNELS"
+remove_kernels="true"
+[[ $UPGRADE_REMOVE_UNUSED_KERNELS == 1 ]] || remove_kernels="false"
 # Where to look for the Raspberry Pi archive in apt sources (see rpi_archive_configured).
 APT_SOURCE_PATHS="${APT_SOURCE_PATHS:-/etc/apt/sources.list /etc/apt/sources.list.d}"
 
@@ -54,17 +60,23 @@ reboot_flag="true"
 reboot_time="04:00"
 [[ $os_id == kali ]] && reboot_flag="false"
 
+# Two key names, two syntaxes. Allowed-Origins takes the legacy "Origin:Archive" form
+# only; "origin=Debian,codename=..." there makes unattended-upgrade abort with "Unable to
+# parse Unattended-Upgrade::Allowed-Origins". The key=value form belongs under
+# Origins-Pattern, so Debian and Kali use that. Ubuntu keeps the legacy form.
 # The ${distro_id}/${distro_codename} tokens are apt-config placeholders expanded
 # by unattended-upgrade, not by the shell — single quotes are intentional (SC2016 off).
+origins_key="Allowed-Origins"
+[[ $os_id == ubuntu ]] || origins_key="Origins-Pattern"
 # shellcheck disable=SC2016
 case "$os_id" in
   ubuntu) origins='        "${distro_id}:${distro_codename}-security";
         "${distro_id}ESMApps:${distro_codename}-apps-security";
         "${distro_id}ESM:${distro_codename}-infra-security";
         "${distro_id}:${distro_codename}-updates";' ;;
-  debian) origins='        "origin=Debian,codename=${distro_codename},label=Debian-Security";
+  debian) origins='        "origin=Debian,codename=${distro_codename}-security,label=Debian-Security";
         "origin=Debian,codename=${distro_codename},label=Debian";
-        "origin=Debian,codename=${distro_codename}-updates";' ;;
+        "origin=Debian,codename=${distro_codename}-updates,label=Debian";' ;;
   kali) origins='        "origin=Kali,codename=kali-rolling";' ;;
 esac
 
@@ -76,12 +88,12 @@ if [[ -n $hold_regexes ]]; then
 fi
 
 policy="// Managed by vm-template (10-update). Overrides 50unattended-upgrades in lex order.
-Unattended-Upgrade::Allowed-Origins {
+Unattended-Upgrade::$origins_key {
 $origins
 };"
 [[ -z $blacklist_block ]] || policy+=$'\n'"$blacklist_block"
 policy+="
-Unattended-Upgrade::Remove-Unused-Kernel-Packages \"true\";
+Unattended-Upgrade::Remove-Unused-Kernel-Packages \"$remove_kernels\";
 Unattended-Upgrade::Remove-Unused-Dependencies \"true\";
 Unattended-Upgrade::Automatic-Reboot \"$reboot_flag\";
 Unattended-Upgrade::Automatic-Reboot-Time \"$reboot_time\";

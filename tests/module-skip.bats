@@ -139,3 +139,30 @@ run_audit() {
   assert_output_matches 'mandatory: [0-9]+ passed, 0 failed, [0-9]+ skipped'
   [ "$status" -eq 0 ]
 }
+
+# --- ADMIN_SUDO=keep in the audit ----------------------------------------------------
+
+@test "the audit counts 'can escalate to root' for the default" {
+  run_audit ADMIN_USER=root
+  assert_output_matches '\[(MISS| ok )\] root can escalate to root$'
+}
+
+@test "with ADMIN_SUDO=keep the escalation control is informational" {
+  run_audit ADMIN_USER=vmtnouser ADMIN_SUDO=keep
+  assert_output_matches '\[note\] vmtnouser can escalate to root \(ADMIN_SUDO=keep'
+  refute_output_matches '\[MISS\] vmtnouser can escalate'
+}
+
+@test "the audit rejects an unknown ADMIN_SUDO" {
+  run_audit ADMIN_SUDO=maybe
+  [ "$status" -eq 1 ]
+  assert_output_matches 'ADMIN_SUDO must be keep, nopasswd or password'
+}
+
+@test "preflight rejects bad ADMIN_SUDO and UPGRADE_REMOVE_UNUSED_KERNELS" {
+  run run_module 00-preflight ADMIN_SUDO=maybe
+  [ "$status" -eq 1 ]
+  run run_module 00-preflight UPGRADE_REMOVE_UNUSED_KERNELS=2
+  [ "$status" -eq 1 ]
+  assert_output_matches 'UPGRADE_REMOVE_UNUSED_KERNELS must be 0 or 1'
+}

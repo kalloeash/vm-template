@@ -57,10 +57,12 @@ run() {
 
 # os_id / os_codename from /etc/os-release (ubuntu|debian|kali)
 # os_id/os_codename are consumed by the modules that source this file (SC2034 off).
+# VMT_OS_RELEASE points the tests at a fixture; it defaults to the real file.
+vmt_os_release="${VMT_OS_RELEASE:-/etc/os-release}"
 # shellcheck disable=SC2034
-if [[ -r /etc/os-release ]]; then
-  # shellcheck disable=SC1091
-  source /etc/os-release
+if [[ -r $vmt_os_release ]]; then
+  # shellcheck disable=SC1090,SC1091
+  source "$vmt_os_release"
   os_id="${ID:-unknown}"
   os_codename="${VERSION_CODENAME:-unknown}"
 else
@@ -201,6 +203,54 @@ validate_address_list() { # validate_address_list VARNAME "value"
 
 validate_flag01() { # validate_flag01 VARNAME "value"
   [[ $2 == 0 || $2 == 1 ]] || die "$1 must be 0 or 1 (got '$2')"
+}
+
+# ADMIN_SUDO decides what 20-user does about the admin's sudo rights:
+#   (unset)   derive it from the password state (key-only: NOPASSWD, password: asked)
+#   nopasswd  NOPASSWD:ALL drop-in      password  sudo asks for the admin's password
+#   keep      leave the sudo group and every sudoers rule as found (an appliance image
+#             may ship a narrow rule on purpose)
+validate_admin_sudo() {
+  case "${ADMIN_SUDO:-}" in
+    "" | keep | nopasswd | password) ;;
+    *) die "ADMIN_SUDO must be keep, nopasswd or password (got '${ADMIN_SUDO}')" ;;
+  esac
+}
+
+# Host keys sshd is configured to use, one path per line. `sshd -T` is asked first, so a
+# host whose keys live elsewhere (a data partition, a drop-in of its own) is seen as it
+# is; the stock paths are the fallback when sshd -T cannot run.
+ssh_configured_hostkeys() {
+  local out
+  out="$(sshd -T 2>/dev/null | awk '$1 == "hostkey" {print $2}')" || out=""
+  if [[ -n $out ]]; then
+    printf '%s\n' "$out"
+  else
+    printf '%s\n' /etc/ssh/ssh_host_ed25519_key /etc/ssh/ssh_host_rsa_key
+  fi
+}
+
+# The subset of those that exist and are not ECDSA/DSA: what 30-ssh may pin. A path that
+# does not exist is left out, because sshd only logs "Unable to load host key" for it and
+# `sshd -t` still passes while any other key loads.
+ssh_pinnable_hostkeys() {
+  local k type
+  while IFS= read -r k; do
+    [[ -f $k ]] || continue
+    type="$(ssh-keygen -lf "$k" 2>/dev/null | awk '{print $NF}')" || type=""
+    case "${type:-$k}" in
+      *ECDSA* | *DSA* | *ecdsa* | *dsa*) continue ;;
+    esac
+    printf '%s\n' "$k"
+  done < <(ssh_configured_hostkeys)
+}
+
+# Configured host key paths that do not exist.
+ssh_missing_hostkeys() {
+  local k
+  while IFS= read -r k; do
+    [[ -f $k ]] || printf '%s\n' "$k"
+  done < <(ssh_configured_hostkeys)
 }
 
 # Journald storage mode and the size cap that applies to volatile storage.
