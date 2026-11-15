@@ -9,6 +9,8 @@
 id_ed25519*
 id_rsa*
 *.env
+# example variable sets hold no secrets and are meant to be committed
+!examples/*.env
 
 # OS cruft
 .DS_Store
