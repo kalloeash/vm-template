@@ -28,6 +28,12 @@ commands that would otherwise make a test depend on the runner (`docker`, `ufw`,
 are stubbed on `PATH`. Tests that need the namespace skip themselves where it is
 unavailable rather than failing.
 
+Under `DRY_RUN=1`, `VMT_SHOW_CONTENT=1` makes `install_file` print what it would have
+written, so a test can assert on rendered config (the unattended-upgrades policy, the
+fail2ban jail, the journald drop-in) without touching the host. The audit tests run
+`90-report` with `DRY_RUN=0` under the same namespace, with `sshd`, `ufw`, `lynis` and
+friends stubbed, and read its `[ok]`/`[MISS]`/`[skip]` lines.
+
 This covers decisions, not effects. Anything that has to actually happen — sshd
 reloading, ufw filtering, a rollback surviving a restart — stays tier 3.
 

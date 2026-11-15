@@ -30,6 +30,7 @@ Start here:
 - [docs/HARDENING.md](docs/HARDENING.md) — per-module spec and deliberate omissions
 - [docs/TOOLING.md](docs/TOOLING.md) — every tool, why it's in or out
 - [docs/DELIVERY.md](docs/DELIVERY.md) — three ways hardening reaches a box (post-boot / cloud-init / Packer)
+- [docs/RASPBERRY-PI.md](docs/RASPBERRY-PI.md) — kiosk profile for Raspberry Pi OS, and what is not verified on real hardware
 - [docs/TESTING.md](docs/TESTING.md) — three-tier test strategy
 - [docs/STYLE.md](docs/STYLE.md) — writing rules (enforced), including the no-AI-language rule
 - [tickets/](tickets/) — the agent-ready build plan, one file per unit of work
@@ -101,12 +102,14 @@ vm-template/
 │   ├── test-hetzner.sh      # tier-3 acceptance on a disposable VM (EXTENDED=1 for more)
 │   └── test-cloud-init.sh   # first-boot delivery, verified end to end
 ├── examples/cloud-init.yaml # delivery path B, ready to paste into user-data
+├── examples/raspberry-pi-kiosk.env  # variable set for a Raspberry Pi kiosk (docs/RASPBERRY-PI.md)
 ├── tests/                   # bats-core suite: make test
 ├── .github/workflows/ci.yml # lint, pre-commit, bats, and the real baseline on amd64+arm64
 ├── tickets/                 # file-based backlog, one unit of work per file
 ├── docs/
 │   ├── ASSESSMENT.md     # gap analysis, decisions, mistakes found, research sources
 │   ├── HARDENING.md      # per-module rationale: what, why, what we deliberately skip
+│   ├── RASPBERRY-PI.md   # kiosk profile: what it sets, what it does not cover
 │   ├── TOOLING.md        # every tool, why it's in or out
 │   ├── TESTING.md        # lint → WSL smoke → throwaway Hetzner VM acceptance
 │   └── STYLE.md          # writing rules, enforced by pre-commit

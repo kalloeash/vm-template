@@ -5,6 +5,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 require_root
 require_distro ubuntu debian kali
+skip_if_requested ssh
 
 ADMIN_USER="${ADMIN_USER:-admin}"
 SSH_ALLOW_USERS="${SSH_ALLOW_USERS:-0}"
@@ -90,6 +91,20 @@ allow_line=""
 # modern set ssh-audit accepts on current OpenSSH; older daemons ignore unknown
 # names, and `sshd -t` gates the reload regardless.
 conf=/etc/ssh/sshd_config.d/10-hardening.conf
+
+# Pin only host keys that exist. Which keys sshd uses is read from `sshd -T` before the
+# drop-in is written, so a host whose keys live elsewhere keeps them; a path that does not
+# exist is never pinned (sshd would log "Unable to load host key" at every start, and
+# `sshd -t` would still pass as long as one other key loads).
+hostkey_lines=""
+pinned_keys=()
+mapfile -t pinned_keys < <(ssh_pinnable_hostkeys)
+for k in "${pinned_keys[@]}"; do hostkey_lines+="HostKey $k"$'\n'; done
+hostkey_lines="${hostkey_lines%$'\n'}"
+if [[ -z $hostkey_lines ]]; then
+  hostkey_lines="# no ed25519 or RSA host key found on disk: nothing pinned, sshd keeps its own"
+  log_warn "no ed25519 or RSA host key exists at a configured path — not pinning any HostKey"
+fi
 candidate="$(mktemp)"
 cat >"$candidate" <<EOF
 # Managed by vm-template (30-ssh). Do not edit by hand.
@@ -99,10 +114,9 @@ ChallengeResponseAuthentication no
 PermitRootLogin no
 PubkeyAuthentication yes
 PermitEmptyPasswords no
-# Offer only strong host keys — this stops sshd presenting the ecdsa (nistp256)
-# host key that ssh-audit flags. ed25519 + rsa host keys exist on stock images.
-HostKey /etc/ssh/ssh_host_ed25519_key
-HostKey /etc/ssh/ssh_host_rsa_key
+# Offer only strong host keys that exist — this stops sshd presenting the ecdsa
+# (nistp256) host key that ssh-audit flags.
+${hostkey_lines}
 MaxAuthTries 3
 MaxSessions 4
 LoginGraceTime 30
@@ -181,6 +195,21 @@ if ! sshd -t 2>/tmp/vmt-sshd-test.err; then
   # Saying otherwise sends whoever reads this at the wrong file.
   log_warn "sshd -t FAILED but $conf was unchanged — the problem is elsewhere in the config"
   die "sshd config is invalid; $conf left as it was"
+fi
+# `sshd -t` passes while any one host key loads, so a pinned path that is missing would
+# go unnoticed. Check every configured path in the final configuration.
+missing_keys="$(ssh_missing_hostkeys)"
+if [[ -n $missing_keys ]]; then
+  pinned_missing=""
+  for k in $missing_keys; do
+    [[ $hostkey_lines == *"HostKey $k"* ]] && pinned_missing+="$k "
+  done
+  if [[ $conf_changed == 1 && -n $pinned_missing ]]; then
+    log_warn "the drop-in pins host key(s) that do not exist: $pinned_missing— rolling back"
+    rollback
+    die "refusing a drop-in that pins missing host keys"
+  fi
+  log_warn "sshd is configured with host key(s) that do not exist (not from this module): $(tr '\n' ' ' <<<"$missing_keys")"
 fi
 log_ok "sshd -t passed"
 [[ -n $backup ]] && rm -f "$backup"

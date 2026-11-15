@@ -8,11 +8,23 @@
 #         make test            bats unit suite (workstation)
 # Knobs:  ADMIN_USER=admin  DRY_RUN=1  TIER=base|full
 #         EXTRA_PORTS="80/tcp 443/tcp"   ufw opens only SSH unless you pass this
+#         SKIP_MODULES="docker"          modules to leave out (update user ssh firewall
+#                                fail2ban sysctl hardening docker auditd); honoured by
+#                                harden, by single-module targets and by audit/report,
+#                                which prints their controls as [skip]. Unknown names
+#                                fail preflight.
+#         UPDATE_SKIP_DIST_UPGRADE=1  UPGRADE_HOLD_PACKAGES="raspi-firmware"
+#         JOURNAL_STORAGE=persistent|volatile  FAIL2BAN_IGNOREIP="192.168.1.0/24"
+#         SSH_ALLOW_FROM="192.168.1.0/24"   see docs/HARDENING.md and docs/RASPBERRY-PI.md
 
 SHELL := /usr/bin/env bash
 MODULES_DIR := modules
 TIER ?= base
 export TIER   # reaches the module environment so 80-auditd can self-gate
+
+# SKIP_MODULES is read by every module (lib/common.sh skip_if_requested) and by 90-report,
+# so a skipped module prints "skipped" here and the audit reports its controls as [skip].
+export SKIP_MODULES
 
 # 80-auditd self-gates on $TIER: base tier sets only journald persistence and
 # exits; TIER=full additionally installs auditd + the rule set.

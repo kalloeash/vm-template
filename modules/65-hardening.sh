@@ -6,6 +6,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 require_root
 require_distro ubuntu debian kali
+skip_if_requested hardening
 
 # Blocking usb-storage is fine on a headless cloud VM and wrong on a board that boots
 # from a USB disk — the modprobe.d rule is copied into the initramfs, so the next boot

@@ -6,6 +6,20 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 
 require_root
 require_distro ubuntu debian kali
+
+# --- optional knobs: reject a bad value now, before any module has changed anything ---
+validate_skip_modules
+validate_flag01 UPDATE_SKIP_DIST_UPGRADE "${UPDATE_SKIP_DIST_UPGRADE:-0}"
+glob_to_regex "${UPGRADE_HOLD_PACKAGES:-}" >/dev/null
+validate_journal
+validate_admin_sudo
+validate_flag01 UPGRADE_REMOVE_UNUSED_KERNELS "${UPGRADE_REMOVE_UNUSED_KERNELS:-1}"
+validate_address_list FAIL2BAN_IGNOREIP "${FAIL2BAN_IGNOREIP:-}"
+validate_address_list SSH_ALLOW_FROM "${SSH_ALLOW_FROM:-}"
+if [[ -n $SKIP_MODULES ]]; then
+  log_ok "SKIP_MODULES=$SKIP_MODULES (those modules do not run and are reported as skipped)"
+fi
+
 command -v apt-get >/dev/null || die "apt-get not found"
 [[ -d /run/systemd/system ]] || die "systemd is not running (container without systemd?)"
 log_ok "distro: $os_id ($os_codename), systemd up, apt available"

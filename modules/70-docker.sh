@@ -5,6 +5,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/../lib/common.sh"
 require_root
 require_distro ubuntu debian kali
+skip_if_requested docker
 
 DOCKER_GROUP_USER="${DOCKER_GROUP_USER:-}"
 

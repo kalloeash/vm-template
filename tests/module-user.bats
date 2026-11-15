@@ -65,3 +65,43 @@ setup() {
   [ "$status" -eq 0 ]
   assert_output_matches 'no authorized_keys'
 }
+
+# --- ADMIN_SUDO ----------------------------------------------------------------
+
+@test "ADMIN_SUDO=keep writes no sudoers file and adds no group" {
+  run run_module 20-user "ADMIN_USER=$NEWUSER" ADMIN_SUDO=keep
+  [ "$status" -eq 0 ]
+  assert_output_matches 'ADMIN_SUDO=keep'
+  refute_output_matches '/etc/sudoers\.d/90-vmt-'
+  refute_output_matches 'add .* to sudo'
+  refute_output_matches 'sudo without password'
+}
+
+@test "ADMIN_SUDO=keep is not stopped by the missing password check" {
+  run run_module 20-user "ADMIN_USER=$NEWUSER" ADMIN_SUDO=keep SUDO_NOPASSWD=0
+  [ "$status" -eq 0 ]
+}
+
+@test "ADMIN_SUDO=nopasswd writes the NOPASSWD drop-in even with a password" {
+  run run_module 20-user "ADMIN_USER=$NEWUSER" ADMIN_SUDO=nopasswd \
+    'ADMIN_PASSWORD_HASH=$6$saltsalt$0123456789abcdef'
+  [ "$status" -eq 0 ]
+  assert_output_matches "/etc/sudoers.d/90-vmt-$NEWUSER"
+}
+
+@test "ADMIN_SUDO=password without a password is refused" {
+  run run_module 20-user "ADMIN_USER=$NEWUSER" ADMIN_SUDO=password
+  [ "$status" -eq 1 ]
+  assert_output_matches 'no usable password'
+}
+
+@test "an unknown ADMIN_SUDO value is rejected" {
+  run run_module 20-user "ADMIN_USER=$NEWUSER" ADMIN_SUDO=yes
+  [ "$status" -eq 1 ]
+  assert_output_matches 'ADMIN_SUDO must be keep, nopasswd or password'
+}
+
+@test "unset ADMIN_SUDO behaves as before: key-only account gets NOPASSWD" {
+  run run_module 20-user "ADMIN_USER=$NEWUSER"
+  assert_output_matches "/etc/sudoers.d/90-vmt-$NEWUSER"
+}

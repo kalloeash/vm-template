@@ -118,3 +118,67 @@ jobs:
             exit 1
           fi
           sudo ufw --force enable
+
+  kiosk-profile:
+    # The Raspberry Pi kiosk variable set (examples/raspberry-pi-kiosk.env) applied for
+    # real. The runner is a real arm64 machine running Ubuntu 24.04, NOT Raspberry Pi OS:
+    # it has no Raspberry Pi archive and no Pi kernel, so this proves the profile's
+    # variables work on arm64 Debian-family hosts and nothing about a Pi
+    # (docs/RASPBERRY-PI.md). The two address knobs are pointed at loopback so the job
+    # cannot cut itself off; the example's placeholder addresses are not used.
+    needs: [dry-run]
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install sshd and the audit tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq openssh-server lynis ssh-audit
+          sudo systemctl enable --now ssh
+
+      - name: harden with the kiosk profile (run 1)
+        run: |
+          set -a; . examples/raspberry-pi-kiosk.env; set +a
+          export ADMIN_USER=ciadmin FORCE_LOCKOUT_OK=1 SSH_ALLOW_FROM=127.0.0.1 FAIL2BAN_IGNOREIP=127.0.0.1
+          sudo -E make harden
+
+      - name: idempotence — a second run must report no changes
+        run: |
+          set -a; . examples/raspberry-pi-kiosk.env; set +a
+          export ADMIN_USER=ciadmin FORCE_LOCKOUT_OK=1 SSH_ALLOW_FROM=127.0.0.1 FAIL2BAN_IGNOREIP=127.0.0.1
+          sudo -E make harden | tee /tmp/run2.log
+          if grep -q '^CHANGED:' /tmp/run2.log; then
+            echo "::error::second run reported changes"
+            grep '^CHANGED:' /tmp/run2.log
+            exit 1
+          fi
+
+      - name: audit passes and reports the skipped module
+        run: |
+          set -a; . examples/raspberry-pi-kiosk.env; set +a
+          export ADMIN_USER=ciadmin SSH_ALLOW_FROM=127.0.0.1 FAIL2BAN_IGNOREIP=127.0.0.1
+          sudo -E make audit | tee /tmp/audit.log
+          grep -q '^  \[skip\] docker installed (module docker skipped' /tmp/audit.log
+          grep -q '^  \[ ok \] journald volatile, capped at 32M' /tmp/audit.log
+
+      - name: the profile's files are what the docs say
+        run: |
+          set -x
+          grep -q '^Storage=volatile' /etc/systemd/journald.conf.d/50-vmt-volatile.conf
+          grep -q 'Package-Blacklist' /etc/apt/apt.conf.d/52-vmt-autoupgrade
+          grep -q '"raspi-firmware\$";' /etc/apt/apt.conf.d/52-vmt-autoupgrade
+          # no Raspberry Pi archive on this runner, so no Raspberry Pi origin
+          test ! -e /etc/apt/apt.conf.d/53-vmt-raspberrypi-origin
+          grep -q '^ignoreip = 127.0.0.1/8 ::1 127.0.0.1' /etc/fail2ban/jail.d/sshd.local
+          sudo ufw status | grep -E '^22/tcp +ALLOW +127.0.0.1'
+          ! sudo ufw status | grep -E '^22/tcp +ALLOW +Anywhere'
+
+      - name: audit must still fail when a mandatory control is broken
+        run: |
+          set -a; . examples/raspberry-pi-kiosk.env; set +a
+          sudo ufw disable
+          if sudo -E make audit ADMIN_USER=ciadmin; then
+            echo "::error::make audit passed with ufw disabled"
+            exit 1
+          fi
