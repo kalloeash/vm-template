@@ -13,7 +13,10 @@ scope: [ticket 016](../tickets/016-raspberry-pi-kiosk-profile.md).
   machine booted from the userspace of a Raspberry Pi OS kiosk image (not a Pi, and not
   the Pi kernel): `make harden` exited 0, `make audit` passed (36 passed, 0 failed,
   2 skipped), Lynis hardening index 75, SSH stayed reachable, and the audit passed again
-  after a reboot. The run found four defects, fixed on this branch: unattended-upgrades
+  after a reboot. On the same day the corrected `52-vmt-autoupgrade` was checked on a Debian 13
+  container: `unattended-upgrade --dry-run -d` parses it and lists the Debian origins and the
+  blacklist, and aborts with "Unable to parse Unattended-Upgrade::Allowed-Origins" on the old
+  form. The VM run found four defects, fixed on this branch: unattended-upgrades
   rejected its own configuration (`Allowed-Origins` with `origin=` strings; present on
   `develop` too), the admin's narrow sudo rule was widened to `NOPASSWD: ALL`
   (`ADMIN_SUDO=keep`), the previous kernel was removed
@@ -37,8 +40,8 @@ What exists besides:
   drop-in then matches packages on a Pi is not tested: `unattended-upgrade --dry-run
   --debug` on the device is the check.
 
-Still to do on a board (the VM run above covers the userspace only), in this order: `make harden` on a fresh image from a console you
-can reach (not only SSH); `make audit`; reboot and `make audit` again; a second
+Still to do on a board (the VM run above covers the userspace only), in this order:
+`make harden` on a fresh image from a console you can reach (not only SSH); `make audit`; reboot and `make audit` again; a second
 `make harden` that prints `OK` throughout; `unattended-upgrade --dry-run --debug`
 showing the Raspberry Pi origin allowed and a held package refused.
 
